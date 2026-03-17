@@ -20,6 +20,10 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
+// Opportunity Routes
+const opportunityRoutes = require('./routes/opportunityRoutes');
+app.use('/api/opportunities', opportunityRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
