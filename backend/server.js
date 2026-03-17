@@ -11,20 +11,21 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// Routes
-const authRoutes = require('./routes/authRoutes');
-app.use('/api/auth', authRoutes);
-
 // Test route
 app.get('/', (req, res) => {
   res.json({ message: 'Volunteer Management API is running!' });
 });
 
+// Routes
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
+
+// Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected successfully!');
-    app.listen(process.env.PORT, () => {
-      console.log(`Server running on port ${process.env.PORT}`);
+    app.listen(process.env.PORT || 5000, () => {
+      console.log(`Server running on port ${process.env.PORT || 5000}`);
     });
   })
   .catch((err) => {
