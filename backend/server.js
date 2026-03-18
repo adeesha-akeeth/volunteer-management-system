@@ -32,6 +32,10 @@ app.use('/api/applications', applicationRoutes);
 const hoursRoutes = require('./routes/hoursRoutes');
 app.use('/api/hours', hoursRoutes);
 
+// Feedback Routes
+const feedbackRoutes = require('./routes/feedbackRoutes');
+app.use('/api/feedback', feedbackRoutes);
+
 
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
