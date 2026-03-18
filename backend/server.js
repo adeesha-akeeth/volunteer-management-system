@@ -36,6 +36,9 @@ app.use('/api/hours', hoursRoutes);
 const feedbackRoutes = require('./routes/feedbackRoutes');
 app.use('/api/feedback', feedbackRoutes);
 
+// Donation Routes
+const donationRoutes = require('./routes/donationRoutes');
+app.use('/api/donations', donationRoutes);
 
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
