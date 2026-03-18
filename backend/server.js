@@ -40,6 +40,10 @@ app.use('/api/feedback', feedbackRoutes);
 const donationRoutes = require('./routes/donationRoutes');
 app.use('/api/donations', donationRoutes);
 
+// Certificate Routes
+const certificateRoutes = require('./routes/certificateRoutes');
+app.use('/api/certificates', certificateRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
