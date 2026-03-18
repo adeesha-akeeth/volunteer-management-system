@@ -28,6 +28,11 @@ app.use('/api/opportunities', opportunityRoutes);
 const applicationRoutes = require('./routes/applicationRoutes');
 app.use('/api/applications', applicationRoutes);
 
+// Hours Routes
+const hoursRoutes = require('./routes/hoursRoutes');
+app.use('/api/hours', hoursRoutes);
+
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
