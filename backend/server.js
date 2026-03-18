@@ -24,6 +24,10 @@ app.use('/api/auth', authRoutes);
 const opportunityRoutes = require('./routes/opportunityRoutes');
 app.use('/api/opportunities', opportunityRoutes);
 
+// Application Routes
+const applicationRoutes = require('./routes/applicationRoutes');
+app.use('/api/applications', applicationRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
