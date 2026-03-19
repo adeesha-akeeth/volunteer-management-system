@@ -1,0 +1,185 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, FlatList, StyleSheet,
+  ActivityIndicator, Alert, TouchableOpacity,
+  TextInput, RefreshControl
+} from 'react-native';
+import api from '../../api';
+
+const MyHoursScreen = () => {
+  const [hours, setHours] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [opportunityId, setOpportunityId] = useState('');
+  const [hoursLogged, setHoursLogged] = useState('');
+  const [date, setDate] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchHours = async () => {
+    try {
+      const response = await api.get('/api/hours/my');
+      setHours(response.data);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load hours');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHours();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchHours();
+  };
+
+  const totalVerifiedHours = hours
+    .filter(h => h.status === 'verified')
+    .reduce((sum, h) => sum + h.hoursLogged, 0);
+
+  const handleLogHours = async () => {
+    if (!opportunityId || !hoursLogged || !date) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('opportunityId', opportunityId);
+      formData.append('hoursLogged', hoursLogged);
+      formData.append('date', date);
+      formData.append('description', description);
+      await api.post('/api/hours', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Alert.alert('Success', 'Hours logged successfully!');
+      setShowForm(false);
+      setOpportunityId('');
+      setHoursLogged('');
+      setDate('');
+      setDescription('');
+      fetchHours();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to log hours');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (hoursId) => {
+    Alert.alert('Delete Record', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete(`/api/hours/${hoursId}`);
+            Alert.alert('Success', 'Hours record deleted');
+            fetchHours();
+          } catch (error) {
+            Alert.alert('Error', 'Failed to delete record');
+          }
+        }
+      }
+    ]);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'verified': return '#27ae60';
+      case 'rejected': return '#e74c3c';
+      default: return '#f39c12';
+    }
+  };
+
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{item.opportunity?.title}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+          <Text style={styles.statusText}>{item.status}</Text>
+        </View>
+      </View>
+      <Text style={styles.cardDetail}>⏱ {item.hoursLogged} hours</Text>
+      <Text style={styles.cardDetail}>📅 {new Date(item.date).toDateString()}</Text>
+      <Text style={styles.cardDetail}>📝 {item.description}</Text>
+      <Text style={styles.cardDetail}>🏢 {item.opportunity?.organization}</Text>
+      {item.status === 'pending' && (
+        <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item._id)}>
+          <Text style={styles.deleteButtonText}>Delete</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  if (loading) {
+    return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.summaryCard}>
+        <Text style={styles.summaryTitle}>Total Verified Hours</Text>
+        <Text style={styles.summaryHours}>{totalVerifiedHours} hrs</Text>
+      </View>
+
+      <Text style={styles.heading}>My Hours</Text>
+
+      <TouchableOpacity style={styles.logButton} onPress={() => setShowForm(!showForm)}>
+        <Text style={styles.logButtonText}>{showForm ? 'Cancel' : '+ Log New Hours'}</Text>
+      </TouchableOpacity>
+
+      {showForm && (
+        <View style={styles.form}>
+          <TextInput style={styles.input} placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
+          <TextInput style={styles.input} placeholder="Hours Logged" value={hoursLogged} onChangeText={setHoursLogged} keyboardType="numeric" />
+          <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
+          <TextInput style={styles.textArea} placeholder="Description (optional)" value={description} onChangeText={setDescription} multiline numberOfLines={3} />
+          <TouchableOpacity style={styles.submitButton} onPress={handleLogHours} disabled={submitting}>
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Hours</Text>}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <FlatList
+        data={hours}
+        keyExtractor={(item) => item._id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListEmptyComponent={<Text style={styles.emptyText}>No hours logged yet</Text>}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  summaryCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 20, marginBottom: 15, alignItems: 'center' },
+  summaryTitle: { color: '#fff', fontSize: 16, marginBottom: 5 },
+  summaryHours: { color: '#fff', fontSize: 36, fontWeight: 'bold' },
+  heading: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  logButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 15 },
+  logButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  form: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16 },
+  textArea: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
+  submitButton: { backgroundColor: '#27ae60', borderRadius: 8, padding: 12, alignItems: 'center' },
+  submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', flex: 1 },
+  statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  statusText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  cardDetail: { color: '#555', marginBottom: 4, fontSize: 14 },
+  deleteButton: { backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
+  deleteButtonText: { color: '#fff', fontWeight: 'bold' },
+  emptyText: { textAlign: 'center', color: '#999', marginTop: 50, fontSize: 16 }
+});
+
+export default MyHoursScreen;
