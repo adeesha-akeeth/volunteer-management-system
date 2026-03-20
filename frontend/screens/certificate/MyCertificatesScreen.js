@@ -51,7 +51,6 @@ const MyCertificatesScreen = () => {
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
-
       <View style={styles.detailsContainer}>
         <View style={styles.detailBox}>
           <Text style={styles.detailLabel}>Hours</Text>
@@ -66,15 +65,12 @@ const MyCertificatesScreen = () => {
           <Text style={styles.detailValue}>{new Date(item.issueDate).toDateString()}</Text>
         </View>
       </View>
-
       <Text style={styles.cardDetail}>📍 {item.opportunity?.location}</Text>
       <Text style={styles.cardDetail}>📅 Event: {new Date(item.opportunity?.date).toDateString()}</Text>
     </View>
   );
 
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
-  }
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
 
   return (
     <View style={styles.container}>
@@ -85,7 +81,6 @@ const MyCertificatesScreen = () => {
           {certificates.filter(c => c.status === 'issued').length} Active Certificates
         </Text>
       </View>
-
       <FlatList
         data={certificates}
         keyExtractor={(item) => item._id}

@@ -54,7 +54,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   };
 
   const handleDelete = async () => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this opportunity?', [
+    Alert.alert('Confirm Delete', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -71,13 +71,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     ]);
   };
 
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
-  }
-
-  if (!opportunity) {
-    return <View style={styles.centered}><Text>Opportunity not found</Text></View>;
-  }
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
+  if (!opportunity) return <View style={styles.centered}><Text>Opportunity not found</Text></View>;
 
   return (
     <ScrollView style={styles.container}>
@@ -87,7 +82,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           <Text style={styles.categoryText}>{opportunity.category}</Text>
         </View>
       </View>
-
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
         <Text style={styles.detail}>🏢 {opportunity.organization}</Text>
@@ -96,12 +90,10 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         <Text style={styles.detail}>👥 {opportunity.spotsAvailable} spots available</Text>
         <Text style={styles.detail}>👤 Posted by: {opportunity.createdBy?.name}</Text>
       </View>
-
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Description</Text>
         <Text style={styles.description}>{opportunity.description}</Text>
       </View>
-
       {showApplyForm && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Cover Letter</Text>
@@ -121,7 +113,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       )}
-
       <View style={styles.buttonContainer}>
         {opportunity.createdBy?._id !== user?.id && !showApplyForm && (
           <TouchableOpacity style={styles.applyButton} onPress={() => setShowApplyForm(true)}>

@@ -36,29 +36,9 @@ const RegisterScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.inner}>
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join us as a volunteer today</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          value={name}
-          onChangeText={setName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password (min 6 characters)"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
+        <TextInput style={styles.input} placeholder="Full Name" value={name} onChangeText={setName} />
+        <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        <TextInput style={styles.input} placeholder="Password (min 6 characters)" value={password} onChangeText={setPassword} secureTextEntry />
         <Text style={styles.label}>Select Role:</Text>
         <View style={styles.roleContainer}>
           <TouchableOpacity
@@ -74,11 +54,9 @@ const RegisterScreen = ({ navigation }) => {
             <Text style={[styles.roleText, role === 'organization' && styles.roleTextActive]}>Organization</Text>
           </TouchableOpacity>
         </View>
-
         <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Register</Text>}
         </TouchableOpacity>
-
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
           <Text style={styles.link}>Already have an account? Login</Text>
         </TouchableOpacity>

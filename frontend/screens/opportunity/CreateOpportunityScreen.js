@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
 const CreateOpportunityScreen = ({ navigation }) => {
@@ -13,9 +14,27 @@ const CreateOpportunityScreen = ({ navigation }) => {
   const [date, setDate] = useState('');
   const [spotsAvailable, setSpotsAvailable] = useState('');
   const [category, setCategory] = useState('other');
+  const [bannerImage, setBannerImage] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const categories = ['education', 'environment', 'health', 'community', 'animals', 'other'];
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.7
+    });
+    if (!result.canceled) {
+      setBannerImage(result.assets[0]);
+    }
+  };
 
   const handleCreate = async () => {
     if (!title || !description || !organization || !location || !date || !spotsAvailable) {
@@ -32,6 +51,14 @@ const CreateOpportunityScreen = ({ navigation }) => {
       formData.append('date', date);
       formData.append('spotsAvailable', spotsAvailable);
       formData.append('category', category);
+
+      if (bannerImage) {
+        formData.append('bannerImage', {
+          uri: bannerImage.uri,
+          type: 'image/jpeg',
+          name: 'banner.jpg'
+        });
+      }
 
       await api.post('/api/opportunities', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -71,6 +98,16 @@ const CreateOpportunityScreen = ({ navigation }) => {
         ))}
       </View>
 
+      <Text style={styles.label}>Banner Image (optional):</Text>
+      <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
+        <Text style={styles.imagePickerText}>
+          {bannerImage ? '✅ Image Selected' : '📷 Pick Banner Image'}
+        </Text>
+      </TouchableOpacity>
+      {bannerImage && (
+        <Image source={{ uri: bannerImage.uri }} style={styles.previewImage} />
+      )}
+
       <TouchableOpacity style={styles.button} onPress={handleCreate} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Opportunity</Text>}
       </TouchableOpacity>
@@ -93,6 +130,9 @@ const styles = StyleSheet.create({
   categoryButtonActive: { backgroundColor: '#2e86de' },
   categoryText: { color: '#2e86de', fontWeight: 'bold' },
   categoryTextActive: { color: '#fff' },
+  imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#2e86de', borderStyle: 'dashed', borderRadius: 10, padding: 20, alignItems: 'center', marginBottom: 15 },
+  imagePickerText: { color: '#2e86de', fontWeight: 'bold', fontSize: 16 },
+  previewImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 15 },
   button: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   cancelButton: { borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 30 },

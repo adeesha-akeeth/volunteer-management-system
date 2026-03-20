@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, TouchableOpacity,
   TextInput, RefreshControl
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
 const MyHoursScreen = () => {
@@ -15,6 +16,7 @@ const MyHoursScreen = () => {
   const [hoursLogged, setHoursLogged] = useState('');
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
+  const [proofImage, setProofImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchHours = async () => {
@@ -42,6 +44,22 @@ const MyHoursScreen = () => {
     .filter(h => h.status === 'verified')
     .reduce((sum, h) => sum + h.hoursLogged, 0);
 
+  const pickProofImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7
+    });
+    if (!result.canceled) {
+      setProofImage(result.assets[0]);
+    }
+  };
+
   const handleLogHours = async () => {
     if (!opportunityId || !hoursLogged || !date) {
       Alert.alert('Error', 'Please fill in all required fields');
@@ -54,6 +72,13 @@ const MyHoursScreen = () => {
       formData.append('hoursLogged', hoursLogged);
       formData.append('date', date);
       formData.append('description', description);
+      if (proofImage) {
+        formData.append('proofImage', {
+          uri: proofImage.uri,
+          type: 'image/jpeg',
+          name: 'proof.jpg'
+        });
+      }
       await api.post('/api/hours', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -63,6 +88,7 @@ const MyHoursScreen = () => {
       setHoursLogged('');
       setDate('');
       setDescription('');
+      setProofImage(null);
       fetchHours();
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to log hours');
@@ -117,9 +143,7 @@ const MyHoursScreen = () => {
     </View>
   );
 
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
-  }
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
 
   return (
     <View style={styles.container}>
@@ -127,25 +151,26 @@ const MyHoursScreen = () => {
         <Text style={styles.summaryTitle}>Total Verified Hours</Text>
         <Text style={styles.summaryHours}>{totalVerifiedHours} hrs</Text>
       </View>
-
       <Text style={styles.heading}>My Hours</Text>
-
       <TouchableOpacity style={styles.logButton} onPress={() => setShowForm(!showForm)}>
         <Text style={styles.logButtonText}>{showForm ? 'Cancel' : '+ Log New Hours'}</Text>
       </TouchableOpacity>
-
       {showForm && (
         <View style={styles.form}>
           <TextInput style={styles.input} placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
           <TextInput style={styles.input} placeholder="Hours Logged" value={hoursLogged} onChangeText={setHoursLogged} keyboardType="numeric" />
           <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
           <TextInput style={styles.textArea} placeholder="Description (optional)" value={description} onChangeText={setDescription} multiline numberOfLines={3} />
+          <TouchableOpacity style={styles.imagePickerButton} onPress={pickProofImage}>
+            <Text style={styles.imagePickerText}>
+              {proofImage ? '✅ Proof Image Selected' : '📷 Upload Proof Image (optional)'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.submitButton} onPress={handleLogHours} disabled={submitting}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Hours</Text>}
           </TouchableOpacity>
         </View>
       )}
-
       <FlatList
         data={hours}
         keyExtractor={(item) => item._id}
@@ -169,6 +194,8 @@ const styles = StyleSheet.create({
   form: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16 },
   textArea: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
+  imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#2e86de', borderStyle: 'dashed', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  imagePickerText: { color: '#2e86de', fontWeight: 'bold' },
   submitButton: { backgroundColor: '#27ae60', borderRadius: 8, padding: 12, alignItems: 'center' },
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3 },

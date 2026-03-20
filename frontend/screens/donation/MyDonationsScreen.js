@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, TouchableOpacity,
   TextInput, RefreshControl
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
 const MyDonationsScreen = () => {
@@ -14,6 +15,7 @@ const MyDonationsScreen = () => {
   const [campaign, setCampaign] = useState('');
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
+  const [receiptImage, setReceiptImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [totalDonated, setTotalDonated] = useState(0);
 
@@ -39,6 +41,22 @@ const MyDonationsScreen = () => {
     fetchDonations();
   };
 
+  const pickReceipt = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7
+    });
+    if (!result.canceled) {
+      setReceiptImage(result.assets[0]);
+    }
+  };
+
   const handleDonate = async () => {
     if (!campaign || !amount) {
       Alert.alert('Error', 'Please fill in campaign and amount');
@@ -54,6 +72,13 @@ const MyDonationsScreen = () => {
       formData.append('campaign', campaign);
       formData.append('amount', amount);
       formData.append('message', message);
+      if (receiptImage) {
+        formData.append('receiptImage', {
+          uri: receiptImage.uri,
+          type: 'image/jpeg',
+          name: 'receipt.jpg'
+        });
+      }
       await api.post('/api/donations', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -62,6 +87,7 @@ const MyDonationsScreen = () => {
       setCampaign('');
       setAmount('');
       setMessage('');
+      setReceiptImage(null);
       fetchDonations();
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to submit donation');
@@ -115,9 +141,7 @@ const MyDonationsScreen = () => {
     </View>
   );
 
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
-  }
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
 
   return (
     <View style={styles.container}>
@@ -126,24 +150,25 @@ const MyDonationsScreen = () => {
         <Text style={styles.summaryAmount}>LKR {totalDonated}</Text>
         <Text style={styles.summaryCount}>{donations.length} donations made</Text>
       </View>
-
       <Text style={styles.heading}>My Donations</Text>
-
       <TouchableOpacity style={styles.donateButton} onPress={() => setShowForm(!showForm)}>
         <Text style={styles.donateButtonText}>{showForm ? 'Cancel' : '+ Make a Donation'}</Text>
       </TouchableOpacity>
-
       {showForm && (
         <View style={styles.form}>
           <TextInput style={styles.input} placeholder="Campaign Name" value={campaign} onChangeText={setCampaign} />
           <TextInput style={styles.input} placeholder="Amount (LKR)" value={amount} onChangeText={setAmount} keyboardType="numeric" />
           <TextInput style={styles.textArea} placeholder="Message (optional)" value={message} onChangeText={setMessage} multiline numberOfLines={3} />
+          <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
+            <Text style={styles.imagePickerText}>
+              {receiptImage ? '✅ Receipt Selected' : '📷 Upload Receipt (optional)'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.submitButton} onPress={handleDonate} disabled={submitting}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Donation</Text>}
           </TouchableOpacity>
         </View>
       )}
-
       <FlatList
         data={donations}
         keyExtractor={(item) => item._id}
@@ -168,6 +193,8 @@ const styles = StyleSheet.create({
   form: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16 },
   textArea: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
+  imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#27ae60', borderStyle: 'dashed', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  imagePickerText: { color: '#27ae60', fontWeight: 'bold' },
   submitButton: { backgroundColor: '#27ae60', borderRadius: 8, padding: 12, alignItems: 'center' },
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3 },

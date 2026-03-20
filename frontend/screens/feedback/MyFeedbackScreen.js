@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, TouchableOpacity,
   TextInput, RefreshControl
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
 const MyFeedbackScreen = () => {
@@ -14,6 +15,7 @@ const MyFeedbackScreen = () => {
   const [opportunityId, setOpportunityId] = useState('');
   const [rating, setRating] = useState('');
   const [comment, setComment] = useState('');
+  const [photo, setPhoto] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchFeedback = async () => {
@@ -37,6 +39,22 @@ const MyFeedbackScreen = () => {
     fetchFeedback();
   };
 
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7
+    });
+    if (!result.canceled) {
+      setPhoto(result.assets[0]);
+    }
+  };
+
   const handleSubmitFeedback = async () => {
     if (!opportunityId || !rating) {
       Alert.alert('Error', 'Please fill in opportunity ID and rating');
@@ -52,6 +70,13 @@ const MyFeedbackScreen = () => {
       formData.append('opportunityId', opportunityId);
       formData.append('rating', rating);
       formData.append('comment', comment);
+      if (photo) {
+        formData.append('photo', {
+          uri: photo.uri,
+          type: 'image/jpeg',
+          name: 'feedback-photo.jpg'
+        });
+      }
       await api.post('/api/feedback', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -60,6 +85,7 @@ const MyFeedbackScreen = () => {
       setOpportunityId('');
       setRating('');
       setComment('');
+      setPhoto(null);
       fetchFeedback();
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to submit feedback');
@@ -86,7 +112,6 @@ const MyFeedbackScreen = () => {
     ]);
   };
 
-  // Generate star display
   const renderStars = (rating) => {
     let stars = '';
     for (let i = 1; i <= 5; i++) {
@@ -102,9 +127,7 @@ const MyFeedbackScreen = () => {
         <Text style={styles.stars}>{renderStars(item.rating)}</Text>
       </View>
       <Text style={styles.cardDetail}>🏢 {item.opportunity?.organization}</Text>
-      {item.comment ? (
-        <Text style={styles.cardDetail}>💬 {item.comment}</Text>
-      ) : null}
+      {item.comment ? <Text style={styles.cardDetail}>💬 {item.comment}</Text> : null}
       <Text style={styles.cardDate}>📅 {new Date(item.createdAt).toDateString()}</Text>
       <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item._id)}>
         <Text style={styles.deleteButtonText}>Delete</Text>
@@ -112,53 +135,33 @@ const MyFeedbackScreen = () => {
     </View>
   );
 
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
-  }
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
 
   return (
     <View style={styles.container}>
-      {/* Summary Card */}
       <View style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>My Reviews</Text>
         <Text style={styles.summaryCount}>{feedbacks.length} feedback submitted</Text>
       </View>
-
       <Text style={styles.heading}>My Feedback</Text>
-
       <TouchableOpacity style={styles.addButton} onPress={() => setShowForm(!showForm)}>
         <Text style={styles.addButtonText}>{showForm ? 'Cancel' : '+ Submit Feedback'}</Text>
       </TouchableOpacity>
-
       {showForm && (
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Opportunity ID"
-            value={opportunityId}
-            onChangeText={setOpportunityId}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Rating (1-5)"
-            value={rating}
-            onChangeText={setRating}
-            keyboardType="numeric"
-          />
-          <TextInput
-            style={styles.textArea}
-            placeholder="Comment (optional)"
-            value={comment}
-            onChangeText={setComment}
-            multiline
-            numberOfLines={3}
-          />
+          <TextInput style={styles.input} placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
+          <TextInput style={styles.input} placeholder="Rating (1-5)" value={rating} onChangeText={setRating} keyboardType="numeric" />
+          <TextInput style={styles.textArea} placeholder="Comment (optional)" value={comment} onChangeText={setComment} multiline numberOfLines={3} />
+          <TouchableOpacity style={styles.imagePickerButton} onPress={pickPhoto}>
+            <Text style={styles.imagePickerText}>
+              {photo ? '✅ Photo Selected' : '📷 Upload Photo (optional)'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmitFeedback} disabled={submitting}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Feedback</Text>}
           </TouchableOpacity>
         </View>
       )}
-
       <FlatList
         data={feedbacks}
         keyExtractor={(item) => item._id}
@@ -182,6 +185,8 @@ const styles = StyleSheet.create({
   form: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16 },
   textArea: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
+  imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#9b59b6', borderStyle: 'dashed', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  imagePickerText: { color: '#9b59b6', fontWeight: 'bold' },
   submitButton: { backgroundColor: '#9b59b6', borderRadius: 8, padding: 12, alignItems: 'center' },
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3 },

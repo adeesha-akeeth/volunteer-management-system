@@ -12,14 +12,16 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "newArchEnabled": false
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.adeeshaakeeth.frontend"
+      "package": "com.adeeshaakeeth.frontend",
+      "newArchEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
