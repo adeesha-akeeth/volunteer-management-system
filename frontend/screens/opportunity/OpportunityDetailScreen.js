@@ -99,7 +99,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Cover Letter</Text>
           <TextInput
             style={styles.textArea}
-            placeholder="Tell us why you want to volunteer..."
+            placeholderTextColor="#999" placeholder="Tell us why you want to volunteer..."
             value={coverLetter}
             onChangeText={setCoverLetter}
             multiline

@@ -149,9 +149,9 @@ const MyFeedbackScreen = () => {
       </TouchableOpacity>
       {showForm && (
         <View style={styles.form}>
-          <TextInput style={styles.input} placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
-          <TextInput style={styles.input} placeholder="Rating (1-5)" value={rating} onChangeText={setRating} keyboardType="numeric" />
-          <TextInput style={styles.textArea} placeholder="Comment (optional)" value={comment} onChangeText={setComment} multiline numberOfLines={3} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Rating (1-5)" value={rating} onChangeText={setRating} keyboardType="numeric" />
+          <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Comment (optional)" value={comment} onChangeText={setComment} multiline numberOfLines={3} />
           <TouchableOpacity style={styles.imagePickerButton} onPress={pickPhoto}>
             <Text style={styles.imagePickerText}>
               {photo ? '✅ Photo Selected' : '📷 Upload Photo (optional)'}

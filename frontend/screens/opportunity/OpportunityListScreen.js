@@ -102,7 +102,7 @@ const OpportunityListScreen = ({ navigation }) => {
         <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search opportunities..."
+          placeholderTextColor="#999" placeholder="Search opportunities..."
           value={search}
           onChangeText={handleSearch}
         />

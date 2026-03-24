@@ -36,9 +36,9 @@ const RegisterScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.inner}>
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join us as a volunteer today</Text>
-        <TextInput style={styles.input} placeholder="Full Name" value={name} onChangeText={setName} />
-        <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <TextInput style={styles.input} placeholder="Password (min 6 characters)" value={password} onChangeText={setPassword} secureTextEntry />
+        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Full Name" value={name} onChangeText={setName} />
+        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Password (min 6 characters)" value={password} onChangeText={setPassword} secureTextEntry />
         <Text style={styles.label}>Select Role:</Text>
         <View style={styles.roleContainer}>
           <TouchableOpacity

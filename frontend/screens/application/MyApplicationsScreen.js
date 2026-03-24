@@ -146,8 +146,8 @@ const MyApplicationsScreen = () => {
 
       {showForm && (
         <View style={styles.form}>
-          <TextInput style={styles.input} placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
-          <TextInput style={styles.textArea} placeholder="Cover Letter" value={coverLetter} onChangeText={setCoverLetter} multiline numberOfLines={4} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
+          <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Cover Letter" value={coverLetter} onChangeText={setCoverLetter} multiline numberOfLines={4} />
           <TouchableOpacity style={styles.imagePickerButton} onPress={pickResume}>
             <Text style={styles.imagePickerText}>
               {resumeFile ? '✅ Resume Selected' : '📎 Upload Resume (optional)'}

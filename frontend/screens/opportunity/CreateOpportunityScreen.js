@@ -78,12 +78,12 @@ const CreateOpportunityScreen = ({ navigation }) => {
     <ScrollView style={styles.container}>
       <Text style={styles.heading}>Post New Opportunity</Text>
 
-      <TextInput style={styles.input} placeholder="Title" value={title} onChangeText={setTitle} />
-      <TextInput style={styles.textArea} placeholder="Description" value={description} onChangeText={setDescription} multiline numberOfLines={4} />
-      <TextInput style={styles.input} placeholder="Organization Name" value={organization} onChangeText={setOrganization} />
-      <TextInput style={styles.input} placeholder="Location" value={location} onChangeText={setLocation} />
-      <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
-      <TextInput style={styles.input} placeholder="Spots Available" value={spotsAvailable} onChangeText={setSpotsAvailable} keyboardType="numeric" />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Title" value={title} onChangeText={setTitle} />
+      <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Description" value={description} onChangeText={setDescription} multiline numberOfLines={4} />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Organization Name" value={organization} onChangeText={setOrganization} />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Location" value={location} onChangeText={setLocation} />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Spots Available" value={spotsAvailable} onChangeText={setSpotsAvailable} keyboardType="numeric" />
 
       <Text style={styles.label}>Select Category:</Text>
       <View style={styles.categoryContainer}>

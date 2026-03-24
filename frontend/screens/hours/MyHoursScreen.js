@@ -157,10 +157,10 @@ const MyHoursScreen = () => {
       </TouchableOpacity>
       {showForm && (
         <View style={styles.form}>
-          <TextInput style={styles.input} placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
-          <TextInput style={styles.input} placeholder="Hours Logged" value={hoursLogged} onChangeText={setHoursLogged} keyboardType="numeric" />
-          <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
-          <TextInput style={styles.textArea} placeholder="Description (optional)" value={description} onChangeText={setDescription} multiline numberOfLines={3} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Hours Logged" value={hoursLogged} onChangeText={setHoursLogged} keyboardType="numeric" />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
+          <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Description (optional)" value={description} onChangeText={setDescription} multiline numberOfLines={3} />
           <TouchableOpacity style={styles.imagePickerButton} onPress={pickProofImage}>
             <Text style={styles.imagePickerText}>
               {proofImage ? '✅ Proof Image Selected' : '📷 Upload Proof Image (optional)'}

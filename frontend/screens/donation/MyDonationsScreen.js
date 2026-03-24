@@ -156,9 +156,9 @@ const MyDonationsScreen = () => {
       </TouchableOpacity>
       {showForm && (
         <View style={styles.form}>
-          <TextInput style={styles.input} placeholder="Campaign Name" value={campaign} onChangeText={setCampaign} />
-          <TextInput style={styles.input} placeholder="Amount (LKR)" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-          <TextInput style={styles.textArea} placeholder="Message (optional)" value={message} onChangeText={setMessage} multiline numberOfLines={3} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Campaign Name" value={campaign} onChangeText={setCampaign} />
+          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Amount (LKR)" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+          <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Message (optional)" value={message} onChangeText={setMessage} multiline numberOfLines={3} />
           <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
             <Text style={styles.imagePickerText}>
               {receiptImage ? '✅ Receipt Selected' : '📷 Upload Receipt (optional)'}
