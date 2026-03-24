@@ -24,14 +24,7 @@ const storage = multer.diskStorage({
 
 // File filter - only allow images
 const fileFilter = (req, file, cb) => {
-  console.log('File mimetype:', file.mimetype);
-  console.log('File originalname:', file.originalname);
-  // Accept all image types
-  if (file.mimetype.startsWith('image/')) {
-    return cb(null, true);
-  } else {
-    cb(new Error('Images only!'));
-  }
+  cb(null, true); // accept all files
 };
 
 const upload = multer({ storage, fileFilter });
