@@ -45,11 +45,9 @@ const createFeedback = async (req, res) => {
 const getFeedbackForOpportunity = async (req, res) => {
   try {
     const feedback = await Feedback.find({ opportunity: req.params.opportunityId })
-      .populate('volunteer', 'name email')
-      .populate('opportunity', 'title organization')
+      .populate('volunteer', 'name')
       .sort({ createdAt: -1 });
 
-    // Calculate average rating
     const averageRating = feedback.length > 0
       ? feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length
       : 0;

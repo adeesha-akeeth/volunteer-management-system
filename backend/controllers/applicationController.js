@@ -4,15 +4,13 @@ const Opportunity = require('../models/Opportunity');
 // Apply to an opportunity
 const applyToOpportunity = async (req, res) => {
   try {
-    const { opportunityId, coverLetter } = req.body;
+    const { opportunityId, coverLetter, phone, email } = req.body;
 
-    // Check if opportunity exists
     const opportunity = await Opportunity.findById(opportunityId);
     if (!opportunity) {
       return res.status(404).json({ message: 'Opportunity not found' });
     }
 
-    // Check if already applied
     const existingApplication = await Application.findOne({
       opportunity: opportunityId,
       volunteer: req.user.id
@@ -21,14 +19,15 @@ const applyToOpportunity = async (req, res) => {
       return res.status(400).json({ message: 'You have already applied to this opportunity' });
     }
 
-    // If a resume file was uploaded, save its path
-    const resumeFile = req.file ? req.file.path : '';
+    const photo = req.file ? req.file.path : '';
 
     const application = await Application.create({
       opportunity: opportunityId,
       volunteer: req.user.id,
       coverLetter,
-      resumeFile
+      phone,
+      email,
+      photo
     });
 
     res.status(201).json({
@@ -40,11 +39,32 @@ const applyToOpportunity = async (req, res) => {
   }
 };
 
-// Get all applications for a specific opportunity (for org to review)
+// Get all applications by the logged in volunteer
+const getMyApplications = async (req, res) => {
+  try {
+    const { status } = req.query;
+    let filter = { volunteer: req.user.id };
+    if (status) filter.status = status;
+
+    const applications = await Application.find(filter)
+      .populate('opportunity', 'title organization location date bannerImage')
+      .sort({ appliedAt: -1 });
+
+    res.status(200).json(applications);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get all applications for a specific opportunity (for creator)
 const getApplicationsForOpportunity = async (req, res) => {
   try {
-    const applications = await Application.find({ opportunity: req.params.opportunityId })
-      .populate('volunteer', 'name email')
+    const { status } = req.query;
+    let filter = { opportunity: req.params.opportunityId };
+    if (status) filter.status = status;
+
+    const applications = await Application.find(filter)
+      .populate('volunteer', 'name email phone')
       .populate('opportunity', 'title organization')
       .sort({ appliedAt: -1 });
 
@@ -54,27 +74,13 @@ const getApplicationsForOpportunity = async (req, res) => {
   }
 };
 
-// Get all applications by the logged in volunteer
-const getMyApplications = async (req, res) => {
-  try {
-    const applications = await Application.find({ volunteer: req.user.id })
-      .populate('opportunity', 'title organization location date')
-      .sort({ appliedAt: -1 });
-
-    res.status(200).json(applications);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Approve or reject an application
+// Update application status (creator approves or marks completed)
 const updateApplicationStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    // Validate status value
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Status must be approved or rejected' });
+    if (!['approved', 'completed'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be approved or completed' });
     }
 
     const application = await Application.findById(req.params.id);
@@ -94,7 +100,7 @@ const updateApplicationStatus = async (req, res) => {
   }
 };
 
-// Delete an application (volunteer withdraws)
+// Withdraw application
 const deleteApplication = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id);
@@ -103,7 +109,6 @@ const deleteApplication = async (req, res) => {
       return res.status(404).json({ message: 'Application not found' });
     }
 
-    // Only the volunteer who applied can withdraw
     if (application.volunteer.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
@@ -118,8 +123,8 @@ const deleteApplication = async (req, res) => {
 
 module.exports = {
   applyToOpportunity,
-  getApplicationsForOpportunity,
   getMyApplications,
+  getApplicationsForOpportunity,
   updateApplicationStatus,
   deleteApplication
 };

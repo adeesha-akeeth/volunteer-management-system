@@ -5,13 +5,12 @@ const path = require('path');
 const { protect } = require('../middleware/authMiddleware');
 const {
   applyToOpportunity,
-  getApplicationsForOpportunity,
   getMyApplications,
+  getApplicationsForOpportunity,
   updateApplicationStatus,
   deleteApplication
 } = require('../controllers/applicationController');
 
-// Multer storage configuration for resume uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -21,18 +20,16 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter - allow images and PDFs (for resumes)
 const fileFilter = (req, file, cb) => {
-  cb(null, true); // accept all files
+  cb(null, true);
 };
 
 const upload = multer({ storage, fileFilter });
 
-// Routes
-router.post('/', protect, upload.single('resumeFile'), applyToOpportunity);                           // Apply to opportunity
-router.get('/my', protect, getMyApplications);                                                         // Get my applications
-router.get('/opportunity/:opportunityId', protect, getApplicationsForOpportunity);                     // Get all applications for an opportunity
-router.put('/:id/status', protect, updateApplicationStatus);                                           // Approve or reject
-router.delete('/:id', protect, deleteApplication);                                                     // Withdraw application
+router.post('/', protect, upload.single('photo'), applyToOpportunity);
+router.get('/my', protect, getMyApplications);
+router.get('/opportunity/:opportunityId', protect, getApplicationsForOpportunity);
+router.put('/:id/status', protect, updateApplicationStatus);
+router.delete('/:id', protect, deleteApplication);
 
 module.exports = router;

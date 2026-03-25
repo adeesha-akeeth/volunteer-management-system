@@ -13,14 +13,22 @@ const applicationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'approved', 'completed'],
     default: 'pending'
   },
   coverLetter: {
     type: String,
     default: ''
   },
-  resumeFile: {
+  phone: {
+    type: String,
+    default: ''
+  },
+  email: {
+    type: String,
+    default: ''
+  },
+  photo: {
     type: String,
     default: ''
   },
