@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
   ActivityIndicator, Alert, TouchableOpacity,
-  TextInput, RefreshControl
+  TextInput, RefreshControl, ScrollView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
@@ -12,7 +12,8 @@ const MyHoursScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [opportunityId, setOpportunityId] = useState('');
+  const [applications, setApplications] = useState([]);
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [hoursLogged, setHoursLogged] = useState('');
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
@@ -31,8 +32,18 @@ const MyHoursScreen = () => {
     }
   };
 
+  const fetchApplications = async () => {
+    try {
+      const response = await api.get('/api/applications/my');
+      setApplications(response.data);
+    } catch (error) {
+      console.log('Failed to load applications');
+    }
+  };
+
   useEffect(() => {
     fetchHours();
+    fetchApplications();
   }, []);
 
   const onRefresh = () => {
@@ -51,7 +62,7 @@ const MyHoursScreen = () => {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.7
     });
@@ -61,37 +72,41 @@ const MyHoursScreen = () => {
   };
 
   const handleLogHours = async () => {
-    if (!opportunityId || !hoursLogged || !date) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!selectedOpportunity || !hoursLogged || !date) {
+      Alert.alert('Error', 'Please select an opportunity, hours and date');
       return;
     }
     setSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append('opportunityId', opportunityId);
-      formData.append('hoursLogged', hoursLogged);
-      formData.append('date', date);
-      formData.append('description', description);
       if (proofImage) {
-        formData.append('proofImage', {
-          uri: proofImage.uri,
-          type: 'image/jpeg',
-          name: 'proof.jpg'
+        const formData = new FormData();
+        formData.append('opportunityId', selectedOpportunity._id);
+        formData.append('hoursLogged', hoursLogged);
+        formData.append('date', date);
+        formData.append('description', description);
+        const filename = proofImage.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        formData.append('proofImage', { uri: proofImage.uri, name: filename, type });
+        await api.post('/api/hours', formData);
+      } else {
+        await api.post('/api/hours', {
+          opportunityId: selectedOpportunity._id,
+          hoursLogged,
+          date,
+          description
         });
       }
-      await api.post('/api/hours', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
       Alert.alert('Success', 'Hours logged successfully!');
       setShowForm(false);
-      setOpportunityId('');
+      setSelectedOpportunity(null);
       setHoursLogged('');
       setDate('');
       setDescription('');
       setProofImage(null);
       fetchHours();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to log hours');
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to log hours');
     } finally {
       setSubmitting(false);
     }
@@ -151,16 +166,63 @@ const MyHoursScreen = () => {
         <Text style={styles.summaryTitle}>Total Verified Hours</Text>
         <Text style={styles.summaryHours}>{totalVerifiedHours} hrs</Text>
       </View>
+
       <Text style={styles.heading}>My Hours</Text>
+
       <TouchableOpacity style={styles.logButton} onPress={() => setShowForm(!showForm)}>
         <Text style={styles.logButtonText}>{showForm ? 'Cancel' : '+ Log New Hours'}</Text>
       </TouchableOpacity>
+
       {showForm && (
         <View style={styles.form}>
-          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
-          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Hours Logged" value={hoursLogged} onChangeText={setHoursLogged} keyboardType="numeric" />
-          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
-          <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Description (optional)" value={description} onChangeText={setDescription} multiline numberOfLines={3} />
+          {/* Opportunity Selector */}
+          <Text style={styles.formLabel}>Select Opportunity:</Text>
+          {applications.length === 0 ? (
+            <Text style={styles.noAppsText}>You haven't applied to any opportunities yet!</Text>
+          ) : (
+            applications.map((app) => (
+              <TouchableOpacity
+                key={app._id}
+                style={[
+                  styles.opportunityOption,
+                  selectedOpportunity?._id === app.opportunity?._id && styles.opportunityOptionActive
+                ]}
+                onPress={() => setSelectedOpportunity(app.opportunity)}
+              >
+                <Text style={[
+                  styles.opportunityOptionText,
+                  selectedOpportunity?._id === app.opportunity?._id && styles.opportunityOptionTextActive
+                ]}>
+                  {app.opportunity?.title} — {app.opportunity?.organization}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+
+          <TextInput
+            style={styles.input}
+            placeholder="Hours Logged (e.g. 5)"
+            placeholderTextColor="#999"
+            value={hoursLogged}
+            onChangeText={setHoursLogged}
+            keyboardType="numeric"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Date (YYYY-MM-DD)"
+            placeholderTextColor="#999"
+            value={date}
+            onChangeText={setDate}
+          />
+          <TextInput
+            style={styles.textArea}
+            placeholder="Description (optional)"
+            placeholderTextColor="#999"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+          />
           <TouchableOpacity style={styles.imagePickerButton} onPress={pickProofImage}>
             <Text style={styles.imagePickerText}>
               {proofImage ? '✅ Proof Image Selected' : '📷 Upload Proof Image (optional)'}
@@ -171,6 +233,7 @@ const MyHoursScreen = () => {
           </TouchableOpacity>
         </View>
       )}
+
       <FlatList
         data={hours}
         keyExtractor={(item) => item._id}
@@ -192,6 +255,12 @@ const styles = StyleSheet.create({
   logButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 15 },
   logButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   form: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
+  formLabel: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 8 },
+  opportunityOption: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginBottom: 8 },
+  opportunityOptionActive: { backgroundColor: '#2e86de', borderColor: '#2e86de' },
+  opportunityOptionText: { color: '#333', fontSize: 14 },
+  opportunityOptionTextActive: { color: '#fff', fontWeight: 'bold' },
+  noAppsText: { color: '#999', fontSize: 14, marginBottom: 10, textAlign: 'center' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16 },
   textArea: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
   imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#2e86de', borderStyle: 'dashed', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },

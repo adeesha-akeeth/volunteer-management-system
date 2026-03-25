@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, TextInput, ActivityIndicator,
-  Alert, RefreshControl
+  Alert, RefreshControl, Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../api';
@@ -42,39 +42,51 @@ const OpportunityListScreen = ({ navigation }) => {
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
-      activeOpacity={0.7}
-    >
-      {/* Card Header */}
-      <View style={styles.cardHeader}>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{item.category}</Text>
-        </View>
-        <View style={styles.tapHint}>
-          <Text style={styles.tapHintText}>Tap to apply →</Text>
-        </View>
+  <TouchableOpacity
+    style={styles.card}
+    onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
+    activeOpacity={0.7}
+  >
+    {/* Banner Image */}
+    {item.bannerImage ? (
+      <Image
+        source={{ uri: `https://volunteer-management-system-qux8.onrender.com/${item.bannerImage}` }}
+        style={styles.cardImage}
+        resizeMode="cover"
+      />
+    ) : (
+      <View style={styles.cardImagePlaceholder}>
+        <Text style={styles.cardImagePlaceholderText}>🌍 No Image</Text>
       </View>
+    )}
 
-      {/* Title */}
-      <Text style={styles.cardTitle}>{item.title}</Text>
-
-      {/* Details */}
-      <Text style={styles.cardDetail}>🏢 {item.organization}</Text>
-      <Text style={styles.cardDetail}>📍 {item.location}</Text>
-      <Text style={styles.cardDetail}>📅 {new Date(item.date).toDateString()}</Text>
-
-      {/* Footer */}
-      <View style={styles.cardFooter}>
-        <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots left</Text>
-        <View style={styles.applyNowBadge}>
-          <Text style={styles.applyNowText}>View & Apply</Text>
-          <Ionicons name="arrow-forward" size={14} color="#fff" />
-        </View>
+    {/* Card Header */}
+    <View style={styles.cardHeader}>
+      <View style={styles.categoryBadge}>
+        <Text style={styles.categoryText}>{item.category}</Text>
       </View>
-    </TouchableOpacity>
-  );
+      <View style={styles.tapHint}>
+        <Text style={styles.tapHintText}>Tap to apply →</Text>
+      </View>
+    </View>
+
+    {/* Title */}
+    <Text style={styles.cardTitle}>{item.title}</Text>
+
+    {/* Details */}
+    <Text style={styles.cardDetail}>🏢 {item.organization}</Text>
+    <Text style={styles.cardDetail}>📍 {item.location}</Text>
+    <Text style={styles.cardDetail}>📅 {new Date(item.date).toDateString()}</Text>
+
+    {/* Footer */}
+    <View style={styles.cardFooter}>
+      <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots left</Text>
+      <View style={styles.applyNowBadge}>
+        <Text style={styles.applyNowText}>View & Apply</Text>
+      </View>
+    </View>
+  </TouchableOpacity>
+);
 
   if (loading) {
     return (
@@ -171,7 +183,10 @@ const styles = StyleSheet.create({
   applyNowText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 15 },
-  emptySubText: { fontSize: 14, color: '#999', marginTop: 5 }
+  emptySubText: { fontSize: 14, color: '#999', marginTop: 5 },
+  cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
+cardImagePlaceholder: { width: '100%', height: 100, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
+cardImagePlaceholderText: { color: '#2e86de', fontSize: 16 }
 });
 
 export default OpportunityListScreen;

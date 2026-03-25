@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, TextInput
-} from 'react-native';
+
 import api from '../../api';
 import { AuthContext } from '../../context/AuthContext';
+import { View, Text, StyleSheet, ScrollView,
+  TouchableOpacity, ActivityIndicator, Alert, TextInput, Image
+} from 'react-native';
 
 const OpportunityDetailScreen = ({ route, navigation }) => {
   const { opportunityId } = route.params;
@@ -94,6 +94,13 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         <Text style={styles.sectionTitle}>Description</Text>
         <Text style={styles.description}>{opportunity.description}</Text>
       </View>
+      {opportunity.bannerImage ? (
+  <Image
+    source={{ uri: `https://volunteer-management-system-qux8.onrender.com/${opportunity.bannerImage}` }}
+    style={styles.bannerImage}
+    resizeMode="cover"
+  />
+) : null}
       {showApplyForm && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Cover Letter</Text>
@@ -130,6 +137,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  bannerImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 15 },
   container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 20, marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

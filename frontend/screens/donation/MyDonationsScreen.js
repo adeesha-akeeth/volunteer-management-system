@@ -58,43 +58,52 @@ const MyDonationsScreen = () => {
   };
 
   const handleDonate = async () => {
-    if (!campaign || !amount) {
-      Alert.alert('Error', 'Please fill in campaign and amount');
-      return;
-    }
-    if (isNaN(amount) || Number(amount) < 1) {
-      Alert.alert('Error', 'Please enter a valid amount');
-      return;
-    }
-    setSubmitting(true);
-    try {
+  if (!campaign || !amount) {
+    Alert.alert('Error', 'Please fill in campaign and amount');
+    return;
+  }
+  if (isNaN(amount) || Number(amount) < 1) {
+    Alert.alert('Error', 'Please enter a valid amount');
+    return;
+  }
+  setSubmitting(true);
+  try {
+    if (receiptImage) {
       const formData = new FormData();
       formData.append('campaign', campaign);
       formData.append('amount', amount);
       formData.append('message', message);
-      if (receiptImage) {
-        formData.append('receiptImage', {
-          uri: receiptImage.uri,
-          type: 'image/jpeg',
-          name: 'receipt.jpg'
-        });
-      }
+      const filename = receiptImage.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      formData.append('receiptImage', {
+        uri: receiptImage.uri,
+        name: filename,
+        type: type
+      });
       await api.post('/api/donations', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      Alert.alert('Success', 'Donation submitted successfully!');
-      setShowForm(false);
-      setCampaign('');
-      setAmount('');
-      setMessage('');
-      setReceiptImage(null);
-      fetchDonations();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to submit donation');
-    } finally {
-      setSubmitting(false);
+    } else {
+      await api.post('/api/donations', {
+        campaign,
+        amount,
+        message
+      });
     }
-  };
+    Alert.alert('Success', 'Donation submitted successfully!');
+    setShowForm(false);
+    setCampaign('');
+    setAmount('');
+    setMessage('');
+    setReceiptImage(null);
+    fetchDonations();
+  } catch (error) {
+    Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit donation');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleDelete = async (donationId) => {
     Alert.alert('Delete Donation', 'Are you sure?', [

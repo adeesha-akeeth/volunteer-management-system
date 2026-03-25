@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CreateOpportunityScreen = ({ navigation }) => {
   const [title, setTitle] = useState('');
@@ -36,13 +38,14 @@ const CreateOpportunityScreen = ({ navigation }) => {
     }
   };
 
-  const handleCreate = async () => {
-    if (!title || !description || !organization || !location || !date || !spotsAvailable) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-    setLoading(true);
-    try {
+const handleCreate = async () => {
+  if (!title || !description || !organization || !location || !date || !spotsAvailable) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
+  }
+  setLoading(true);
+  try {
+    if (bannerImage) {
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
@@ -51,28 +54,29 @@ const CreateOpportunityScreen = ({ navigation }) => {
       formData.append('date', date);
       formData.append('spotsAvailable', spotsAvailable);
       formData.append('category', category);
-
-      if (bannerImage) {
-        formData.append('bannerImage', {
-          uri: bannerImage.uri,
-          type: 'image/jpeg',
-          name: 'banner.jpg'
-        });
-      }
-
-      await api.post('/api/opportunities', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const filename = bannerImage.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      formData.append('bannerImage', {
+        uri: bannerImage.uri,
+        name: filename,
+        type: type
       });
-
-      Alert.alert('Success', 'Opportunity created successfully!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to create opportunity');
-    } finally {
-      setLoading(false);
+      await api.post('/api/opportunities', formData);
+    } else {
+      await api.post('/api/opportunities', {
+        title, description, organization, location, date, spotsAvailable, category
+      });
     }
-  };
+    Alert.alert('Success', 'Opportunity created successfully!', [
+      { text: 'OK', onPress: () => navigation.goBack() }
+    ]);
+  } catch (error) {
+    Alert.alert('Error', error.response?.data?.message || error.message || 'Failed');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <ScrollView style={styles.container}>

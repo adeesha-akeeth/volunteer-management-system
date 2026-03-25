@@ -55,37 +55,45 @@ const MyApplicationsScreen = () => {
   };
 
   const handleApply = async () => {
-    if (!opportunityId || !coverLetter) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-    setSubmitting(true);
-    try {
+  if (!opportunityId || !coverLetter) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
+  }
+  setSubmitting(true);
+  try {
+    if (resumeFile) {
       const formData = new FormData();
       formData.append('opportunityId', opportunityId);
       formData.append('coverLetter', coverLetter);
-      if (resumeFile) {
-        formData.append('resumeFile', {
-          uri: resumeFile.uri,
-          type: 'image/jpeg',
-          name: 'resume.jpg'
-        });
-      }
+      const filename = resumeFile.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      formData.append('resumeFile', {
+        uri: resumeFile.uri,
+        name: filename,
+        type: type
+      });
       await api.post('/api/applications', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      Alert.alert('Success', 'Application submitted successfully!');
-      setShowForm(false);
-      setOpportunityId('');
-      setCoverLetter('');
-      setResumeFile(null);
-      fetchApplications();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to apply');
-    } finally {
-      setSubmitting(false);
+    } else {
+      await api.post('/api/applications', {
+        opportunityId,
+        coverLetter
+      });
     }
-  };
+    Alert.alert('Success', 'Application submitted successfully!');
+    setShowForm(false);
+    setOpportunityId('');
+    setCoverLetter('');
+    setResumeFile(null);
+    fetchApplications();
+  } catch (error) {
+    Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to apply');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleWithdraw = async (applicationId) => {
     Alert.alert('Withdraw Application', 'Are you sure?', [
