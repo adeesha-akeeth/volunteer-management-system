@@ -1,25 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity,
-  RefreshControl, TextInput
+  ActivityIndicator, Alert, TouchableOpacity, RefreshControl
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
-const MyApplicationsScreen = () => {
+const MyApplicationsScreen = ({ navigation }) => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [opportunityId, setOpportunityId] = useState('');
-  const [coverLetter, setCoverLetter] = useState('');
-  const [resumeFile, setResumeFile] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [filter, setFilter] = useState('all');
 
   const fetchApplications = async () => {
     try {
-      const response = await api.get('/api/applications/my');
+      const url = filter === 'all' ? '/api/applications/my' : `/api/applications/my?status=${filter}`;
+      const response = await api.get(url);
       setApplications(response.data);
     } catch (error) {
       Alert.alert('Error', 'Failed to load applications');
@@ -31,69 +26,12 @@ const MyApplicationsScreen = () => {
 
   useEffect(() => {
     fetchApplications();
-  }, []);
+  }, [filter]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchApplications();
   };
-
-  const pickResume = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.7
-    });
-    if (!result.canceled) {
-      setResumeFile(result.assets[0]);
-    }
-  };
-
-  const handleApply = async () => {
-  if (!opportunityId || !coverLetter) {
-    Alert.alert('Error', 'Please fill in all fields');
-    return;
-  }
-  setSubmitting(true);
-  try {
-    if (resumeFile) {
-      const formData = new FormData();
-      formData.append('opportunityId', opportunityId);
-      formData.append('coverLetter', coverLetter);
-      const filename = resumeFile.uri.split('/').pop();
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
-      formData.append('resumeFile', {
-        uri: resumeFile.uri,
-        name: filename,
-        type: type
-      });
-      await api.post('/api/applications', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-    } else {
-      await api.post('/api/applications', {
-        opportunityId,
-        coverLetter
-      });
-    }
-    Alert.alert('Success', 'Application submitted successfully!');
-    setShowForm(false);
-    setOpportunityId('');
-    setCoverLetter('');
-    setResumeFile(null);
-    fetchApplications();
-  } catch (error) {
-    Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to apply');
-  } finally {
-    setSubmitting(false);
-  }
-};
 
   const handleWithdraw = async (applicationId) => {
     Alert.alert('Withdraw Application', 'Are you sure?', [
@@ -103,10 +41,10 @@ const MyApplicationsScreen = () => {
         onPress: async () => {
           try {
             await api.delete(`/api/applications/${applicationId}`);
-            Alert.alert('Success', 'Application withdrawn successfully');
+            Alert.alert('Success', 'Application withdrawn');
             fetchApplications();
           } catch (error) {
-            Alert.alert('Error', 'Failed to withdraw application');
+            Alert.alert('Error', 'Failed to withdraw');
           }
         }
       }
@@ -116,8 +54,16 @@ const MyApplicationsScreen = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'approved': return '#27ae60';
-      case 'rejected': return '#e74c3c';
+      case 'completed': return '#2e86de';
       default: return '#f39c12';
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'approved': return '✅ Accepted';
+      case 'completed': return '🏆 Completed';
+      default: return '⏳ Pending';
     }
   };
 
@@ -126,14 +72,23 @@ const MyApplicationsScreen = () => {
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.opportunity?.title}</Text>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status}</Text>
+          <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
         </View>
       </View>
       <Text style={styles.cardDetail}>🏢 {item.opportunity?.organization}</Text>
       <Text style={styles.cardDetail}>📍 {item.opportunity?.location}</Text>
       <Text style={styles.cardDetail}>📅 {new Date(item.opportunity?.date).toDateString()}</Text>
-      <Text style={styles.cardDetail}>📝 {item.coverLetter}</Text>
       <Text style={styles.cardDate}>Applied: {new Date(item.appliedAt).toDateString()}</Text>
+
+      {item.status === 'completed' && (
+        <TouchableOpacity
+          style={styles.feedbackButton}
+          onPress={() => navigation.navigate('SubmitFeedback', { opportunity: item.opportunity })}
+        >
+          <Text style={styles.feedbackButtonText}>⭐ Give Feedback</Text>
+        </TouchableOpacity>
+      )}
+
       {item.status === 'pending' && (
         <TouchableOpacity style={styles.withdrawButton} onPress={() => handleWithdraw(item._id)}>
           <Text style={styles.withdrawButtonText}>Withdraw</Text>
@@ -148,31 +103,27 @@ const MyApplicationsScreen = () => {
     <View style={styles.container}>
       <Text style={styles.heading}>My Applications</Text>
 
-      <TouchableOpacity style={styles.applyButton} onPress={() => setShowForm(!showForm)}>
-        <Text style={styles.applyButtonText}>{showForm ? 'Cancel' : '+ Apply to Opportunity'}</Text>
-      </TouchableOpacity>
-
-      {showForm && (
-        <View style={styles.form}>
-          <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Opportunity ID" value={opportunityId} onChangeText={setOpportunityId} />
-          <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Cover Letter" value={coverLetter} onChangeText={setCoverLetter} multiline numberOfLines={4} />
-          <TouchableOpacity style={styles.imagePickerButton} onPress={pickResume}>
-            <Text style={styles.imagePickerText}>
-              {resumeFile ? '✅ Resume Selected' : '📎 Upload Resume (optional)'}
+      {/* Filter Tabs */}
+      <View style={styles.filterContainer}>
+        {['all', 'pending', 'approved', 'completed'].map((f) => (
+          <TouchableOpacity
+            key={f}
+            style={[styles.filterTab, filter === f && styles.filterTabActive]}
+            onPress={() => setFilter(f)}
+          >
+            <Text style={[styles.filterTabText, filter === f && styles.filterTabTextActive]}>
+              {f.charAt(0).toUpperCase() + f.slice(1)}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.submitButton} onPress={handleApply} disabled={submitting}>
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Application</Text>}
-          </TouchableOpacity>
-        </View>
-      )}
+        ))}
+      </View>
 
       <FlatList
         data={applications}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={<Text style={styles.emptyText}>You haven't applied to any opportunities yet</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>No applications found</Text>}
       />
     </View>
   );
@@ -182,22 +133,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   heading: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 15 },
-  applyButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 15 },
-  applyButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  form: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16 },
-  textArea: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
-  imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#2e86de', borderStyle: 'dashed', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
-  imagePickerText: { color: '#2e86de', fontWeight: 'bold' },
-  submitButton: { backgroundColor: '#27ae60', borderRadius: 8, padding: 12, alignItems: 'center' },
-  submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  filterContainer: { flexDirection: 'row', marginBottom: 15, gap: 8 },
+  filterTab: { flex: 1, padding: 8, borderRadius: 20, borderWidth: 1, borderColor: '#2e86de', alignItems: 'center' },
+  filterTabActive: { backgroundColor: '#2e86de' },
+  filterTabText: { color: '#2e86de', fontSize: 12, fontWeight: 'bold' },
+  filterTabTextActive: { color: '#fff' },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', flex: 1 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
   statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  statusText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   cardDetail: { color: '#555', marginBottom: 4, fontSize: 14 },
   cardDate: { color: '#999', fontSize: 12, marginTop: 5 },
+  feedbackButton: { backgroundColor: '#9b59b6', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
+  feedbackButtonText: { color: '#fff', fontWeight: 'bold' },
   withdrawButton: { backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
   withdrawButtonText: { color: '#fff', fontWeight: 'bold' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 50, fontSize: 16 }

@@ -27,10 +27,10 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
-  const register = async (name, email, password, role) => {
+  const register = async (name, email, password, phone) => {
     try {
       const response = await api.post('/api/auth/register', {
-        name, email, password, role
+        name, email, password, phone, role: 'volunteer'
       });
       const { token, user } = response.data;
       await AsyncStorage.setItem('token', token);
@@ -57,6 +57,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = async (updatedUser) => {
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
   const logout = async () => {
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
@@ -65,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, register, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
