@@ -1,12 +1,8 @@
-const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-const path = require('path');
-const { protect } = require('../middleware/authMiddleware');
 const {
   createOpportunity,
   getOpportunities,
   getOpportunityById,
+  getMyOpportunities,
   updateOpportunity,
   deleteOpportunity
 } = require('../controllers/opportunityController');
@@ -30,11 +26,10 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter });
 
 // Routes
-router.get('/', getOpportunities);                              // GET all (public)
-router.get('/:id', getOpportunityById);                        // GET one (public)
-router.get('/my', protect, getMyOpportunities);
-router.post('/', protect, upload.single('bannerImage'), createOpportunity);   // POST (protected)
-router.put('/:id', protect, upload.single('bannerImage'), updateOpportunity); // PUT (protected)
-router.delete('/:id', protect, deleteOpportunity);             // DELETE (protected)
-
+router.get('/', getOpportunities);
+router.get('/my', protect, getMyOpportunities);  // ← must be before /:id
+router.get('/:id', getOpportunityById);
+router.post('/', protect, upload.single('bannerImage'), createOpportunity);
+router.put('/:id', protect, upload.single('bannerImage'), updateOpportunity);
+router.delete('/:id', protect, deleteOpportunity);
 module.exports = router;
