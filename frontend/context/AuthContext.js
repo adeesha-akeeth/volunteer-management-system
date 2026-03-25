@@ -39,8 +39,7 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.response?.data?.message || 'Register failed' };
-    }
+return { success: false, message: error.response?.data?.message || error.message || 'Register failed' };    }
   };
 
   const login = async (email, password) => {
@@ -53,8 +52,7 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.response?.data?.message || 'Login failed' };
-    }
+return { success: false, message: error.response?.data?.message || error.message || 'Login failed' };    }
   };
 
   const updateUser = async (updatedUser) => {

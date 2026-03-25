@@ -12,7 +12,7 @@ const MyCreatedOpportunitiesScreen = ({ navigation }) => {
 
   const fetchMyOpportunities = async () => {
     try {
-      const response = await api.get('/api/opportunities');
+const response = await api.get('/api/opportunities/my');
       setOpportunities(response.data);
     } catch (error) {
       Alert.alert('Error', 'Failed to load opportunities');

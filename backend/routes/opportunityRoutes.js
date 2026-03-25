@@ -32,6 +32,7 @@ const upload = multer({ storage, fileFilter });
 // Routes
 router.get('/', getOpportunities);                              // GET all (public)
 router.get('/:id', getOpportunityById);                        // GET one (public)
+router.get('/my', protect, getMyOpportunities);
 router.post('/', protect, upload.single('bannerImage'), createOpportunity);   // POST (protected)
 router.put('/:id', protect, upload.single('bannerImage'), updateOpportunity); // PUT (protected)
 router.delete('/:id', protect, deleteOpportunity);             // DELETE (protected)

@@ -106,7 +106,16 @@ const updateOpportunity = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
+const getMyOpportunities = async (req, res) => {
+  try {
+    const opportunities = await Opportunity.find({ createdBy: req.user.id })
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
+    res.status(200).json(opportunities);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
 // Delete an opportunity
 const deleteOpportunity = async (req, res) => {
   try {
@@ -133,6 +142,7 @@ module.exports = {
   createOpportunity,
   getOpportunities,
   getOpportunityById,
+  getMyOpportunities,
   updateOpportunity,
   deleteOpportunity
 };
