@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 // Register
 const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, phone } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -22,7 +22,8 @@ const register = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role
+      phone: phone || '',
+      role: 'volunteer'
     });
 
     // Generate token
@@ -39,6 +40,7 @@ const register = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });
@@ -78,6 +80,7 @@ const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });
@@ -86,4 +89,53 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+// Get Profile
+const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update Profile
+const updateProfile = async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { name, phone },
+      { new: true }
+    ).select('-password');
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Change Password
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.id);
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { register, login, getProfile, updateProfile, changePassword };
