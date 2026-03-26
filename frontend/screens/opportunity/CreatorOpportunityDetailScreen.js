@@ -41,19 +41,9 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleGenerateCertificate = async (application) => {
-    try {
-      await api.post('/api/certificates', {
-        volunteerId: application.volunteer._id,
-        opportunityId: opportunityId,
-        issuedBy: opportunity.organization,
-        hoursCompleted: 0
-      });
-      Alert.alert('Success', 'Certificate generated successfully!');
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to generate certificate');
-    }
-  };
+  const handleGenerateCertificate = (application) => {
+  navigation.navigate('GenerateCertificate', { application, opportunity });
+};
 
   const getStatusColor = (status) => {
     switch (status) {

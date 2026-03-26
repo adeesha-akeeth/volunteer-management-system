@@ -28,11 +28,16 @@ import SubmitFeedbackScreen from './screens/feedback/SubmitFeedbackScreen';
 // Profile Screen
 import ProfileScreen from './screens/profile/ProfileScreen';
 
-// Certificate Screen
+// Certificate Screens
 import MyCertificatesScreen from './screens/certificate/MyCertificatesScreen';
+import GenerateCertificateScreen from './screens/certificate/GenerateCertificateScreen';
 
 // Donation Screen
 import MyDonationsScreen from './screens/donation/MyDonationsScreen';
+
+// Favourites Screens
+import FavouritesScreen from './screens/favourites/FavouritesScreen';
+import FavouriteDetailScreen from './screens/favourites/FavouriteDetailScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -47,7 +52,8 @@ const MainTabs = () => (
       tabBarIcon: ({ focused, color, size }) => {
         let iconName;
         if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-        else if (route.name === 'Donations') iconName = focused ? 'heart' : 'heart-outline';
+        else if (route.name === 'Favourites') iconName = focused ? 'heart' : 'heart-outline';
+        else if (route.name === 'Donations') iconName = focused ? 'cash' : 'cash-outline';
         else if (route.name === 'Certificates') iconName = focused ? 'ribbon' : 'ribbon-outline';
         else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
         return <Ionicons name={iconName} size={size} color={color} />;
@@ -55,6 +61,7 @@ const MainTabs = () => (
     })}
   >
     <Tab.Screen name="Home" component={HomeStack} />
+    <Tab.Screen name="Favourites" component={FavouritesStack} />
     <Tab.Screen name="Donations" component={MyDonationsScreen} />
     <Tab.Screen name="Certificates" component={MyCertificatesScreen} />
     <Tab.Screen name="Profile" component={ProfileStack} />
@@ -68,7 +75,16 @@ const HomeStack = () => (
     <Stack.Screen name="CreateOpportunity" component={CreateOpportunityScreen} options={{ title: 'Post Opportunity' }} />
     <Stack.Screen name="Apply" component={ApplyScreen} options={{ title: 'Apply' }} />
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="GenerateCertificate" component={GenerateCertificateScreen} options={{ title: 'Generate Certificate' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
+  </Stack.Navigator>
+);
+
+const FavouritesStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
+    <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
+    <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
   </Stack.Navigator>
 );
 
@@ -78,7 +94,10 @@ const ProfileStack = () => (
     <Stack.Screen name="MyApplications" component={MyApplicationsScreen} options={{ title: 'My Applications' }} />
     <Stack.Screen name="MyCreatedOpportunities" component={MyCreatedOpportunitiesScreen} options={{ title: 'My Created Opportunities' }} />
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="GenerateCertificate" component={GenerateCertificateScreen} options={{ title: 'Generate Certificate' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
+    <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
+    <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
   </Stack.Navigator>
 );
 

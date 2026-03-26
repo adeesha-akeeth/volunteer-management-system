@@ -149,6 +149,13 @@ const ProfileScreen = ({ navigation }) => {
           <Text style={styles.navButtonText}>📌 My Created Opportunities</Text>
           <Text style={styles.navButtonArrow}>→</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+  style={styles.navButton}
+  onPress={() => navigation.navigate('FavouritesList')}
+>
+  <Text style={styles.navButtonText}>❤️ My Favourites</Text>
+  <Text style={styles.navButtonArrow}>→</Text>
+</TouchableOpacity>
       </View>
 
       {/* Logout */}

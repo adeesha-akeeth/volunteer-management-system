@@ -41,52 +41,98 @@ const OpportunityListScreen = ({ navigation }) => {
     fetchOpportunities();
   };
 
+  const handleAddToFavourites = async (opportunity) => {
+    try {
+      const response = await api.get('/api/favourites');
+      const lists = response.data;
+
+      if (lists.length === 0) {
+        Alert.alert('No Lists', 'Please create a favourites list first!', [
+          { text: 'OK', onPress: () => navigation.navigate('Favourites') }
+        ]);
+        return;
+      }
+
+      Alert.alert(
+        'Add to Favourites',
+        'Choose a list:',
+        [
+          ...lists.map(list => ({
+            text: list.name,
+            onPress: async () => {
+              try {
+                await api.post(`/api/favourites/${list._id}/add`, { opportunityId: opportunity._id });
+                Alert.alert('Success', `Added to "${list.name}"!`);
+              } catch (error) {
+                Alert.alert('Error', error.response?.data?.message || 'Failed to add');
+              }
+            }
+          })),
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load favourites lists');
+    }
+  };
+
   const renderItem = ({ item }) => (
-  <TouchableOpacity
-    style={styles.card}
-    onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
-    activeOpacity={0.7}
-  >
-    {/* Banner Image */}
-    {item.bannerImage ? (
-      <Image
-        source={{ uri: `https://volunteer-management-system-qux8.onrender.com/${item.bannerImage}` }}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
-    ) : (
-      <View style={styles.cardImagePlaceholder}>
-        <Text style={styles.cardImagePlaceholderText}>🌍 No Image</Text>
-      </View>
-    )}
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
+      activeOpacity={0.7}
+    >
+      {/* Banner Image */}
+      {item.bannerImage ? (
+        <Image
+          source={{ uri: `https://volunteer-management-system-qux8.onrender.com/${item.bannerImage}` }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.cardImagePlaceholder}>
+          <Text style={styles.cardImagePlaceholderText}>🌍 No Image</Text>
+        </View>
+      )}
 
-    {/* Card Header */}
-    <View style={styles.cardHeader}>
-      <View style={styles.categoryBadge}>
-        <Text style={styles.categoryText}>{item.category}</Text>
+      {/* Card Header */}
+      <View style={styles.cardHeader}>
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryText}>{item.category}</Text>
+        </View>
+        <View style={styles.tapHint}>
+          <Text style={styles.tapHintText}>Tap to apply →</Text>
+        </View>
       </View>
-      <View style={styles.tapHint}>
-        <Text style={styles.tapHintText}>Tap to apply →</Text>
+
+      {/* Title */}
+      <Text style={styles.cardTitle}>{item.title}</Text>
+
+      {/* Details */}
+      <Text style={styles.cardDetail}>🏢 {item.organization}</Text>
+      <Text style={styles.cardDetail}>📍 {item.location}</Text>
+      <Text style={styles.cardDetail}>📅 {new Date(item.date).toDateString()}</Text>
+
+      {/* Footer */}
+      <View style={styles.cardFooter}>
+        <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots left</Text>
+        <View style={styles.footerRight}>
+          <TouchableOpacity
+            style={styles.heartButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleAddToFavourites(item);
+            }}
+          >
+            <Text style={styles.heartIcon}>❤️</Text>
+          </TouchableOpacity>
+          <View style={styles.applyNowBadge}>
+            <Text style={styles.applyNowText}>View & Apply</Text>
+          </View>
+        </View>
       </View>
-    </View>
-
-    {/* Title */}
-    <Text style={styles.cardTitle}>{item.title}</Text>
-
-    {/* Details */}
-    <Text style={styles.cardDetail}>🏢 {item.organization}</Text>
-    <Text style={styles.cardDetail}>📍 {item.location}</Text>
-    <Text style={styles.cardDetail}>📅 {new Date(item.date).toDateString()}</Text>
-
-    {/* Footer */}
-    <View style={styles.cardFooter}>
-      <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots left</Text>
-      <View style={styles.applyNowBadge}>
-        <Text style={styles.applyNowText}>View & Apply</Text>
-      </View>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
 
   if (loading) {
     return (
@@ -114,7 +160,8 @@ const OpportunityListScreen = ({ navigation }) => {
         <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholderTextColor="#999" placeholder="Search opportunities..."
+          placeholderTextColor="#999"
+          placeholder="Search opportunities..."
           value={search}
           onChangeText={handleSearch}
         />
@@ -179,14 +226,17 @@ const styles = StyleSheet.create({
   cardDetail: { color: '#555', marginBottom: 4, fontSize: 14 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   cardSpots: { color: '#27ae60', fontWeight: 'bold', fontSize: 14 },
-  applyNowBadge: { backgroundColor: '#2e86de', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  footerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heartButton: { backgroundColor: '#ffe0e0', borderRadius: 20, padding: 6 },
+  heartIcon: { fontSize: 16 },
+  applyNowBadge: { backgroundColor: '#2e86de', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   applyNowText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 15 },
   emptySubText: { fontSize: 14, color: '#999', marginTop: 5 },
   cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
-cardImagePlaceholder: { width: '100%', height: 100, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
-cardImagePlaceholderText: { color: '#2e86de', fontSize: 16 }
+  cardImagePlaceholder: { width: '100%', height: 100, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
+  cardImagePlaceholderText: { color: '#2e86de', fontSize: 16 }
 });
 
 export default OpportunityListScreen;
