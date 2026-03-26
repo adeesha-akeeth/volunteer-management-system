@@ -54,6 +54,9 @@ app.use('/api/donations', donationRoutes);
 const certificateRoutes = require('./routes/certificateRoutes');
 app.use('/api/certificates', certificateRoutes);
 
+const favouriteRoutes = require('./routes/favouriteRoutes');
+app.use('/api/favourites', favouriteRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

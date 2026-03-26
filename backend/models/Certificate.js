@@ -21,13 +21,9 @@ const certificateSchema = new mongoose.Schema({
   },
   hoursCompleted: {
     type: Number,
-    required: true
+    default: 0
   },
-  issueDate: {
-    type: Date,
-    default: Date.now
-  },
-  certificateFile: {
+  description: {
     type: String,
     default: ''
   },

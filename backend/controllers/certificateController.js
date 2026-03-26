@@ -4,8 +4,7 @@ const Opportunity = require('../models/Opportunity');
 // Issue a certificate
 const issueCertificate = async (req, res) => {
   try {
-    const { volunteerId, opportunityId, issuedBy, hoursCompleted } = req.body;
-
+const { volunteerId, opportunityId, issuedBy, hoursCompleted, description } = req.body;
     // Check if opportunity exists
     const opportunity = await Opportunity.findById(opportunityId);
     if (!opportunity) {
@@ -25,12 +24,13 @@ const issueCertificate = async (req, res) => {
     const orgLogo = req.file ? req.file.path : '';
 
     const certificate = await Certificate.create({
-      volunteer: volunteerId,
-      opportunity: opportunityId,
-      issuedBy,
-      hoursCompleted,
-      orgLogo
-    });
+  volunteer: volunteerId,
+  opportunity: opportunityId,
+  issuedBy,
+  hoursCompleted,
+  orgLogo,
+  description: description || ''
+});
 
     res.status(201).json({
       message: 'Certificate issued successfully',
