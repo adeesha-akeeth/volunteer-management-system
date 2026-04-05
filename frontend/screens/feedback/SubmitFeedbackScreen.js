@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Switch
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
@@ -11,6 +11,7 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [photo, setPhoto] = useState(null);
+  const [anonymous, setAnonymous] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const pickPhoto = async () => {
@@ -34,23 +35,18 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
     }
     setLoading(true);
     try {
+      const formData = new FormData();
+      formData.append('opportunityId', opportunity._id);
+      formData.append('rating', rating.toString());
+      formData.append('comment', comment);
+      formData.append('anonymous', anonymous.toString());
       if (photo) {
-        const formData = new FormData();
-        formData.append('opportunityId', opportunity._id);
-        formData.append('rating', rating.toString());
-        formData.append('comment', comment);
         const filename = photo.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : 'image/jpeg';
         formData.append('photo', { uri: photo.uri, name: filename, type });
-        await api.post('/api/feedback', formData);
-      } else {
-        await api.post('/api/feedback', {
-          opportunityId: opportunity._id,
-          rating: rating.toString(),
-          comment
-        });
       }
+      await api.post('/api/feedback', formData);
       Alert.alert('Success', 'Feedback submitted!', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
@@ -65,7 +61,7 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
     <ScrollView style={styles.container}>
       <View style={styles.opportunityCard}>
         <Text style={styles.opportunityTitle}>{opportunity.title}</Text>
-        <Text style={styles.opportunityOrg}>🏢 {opportunity.organization}</Text>
+        {opportunity.organization ? <Text style={styles.opportunityOrg}>🏢 {opportunity.organization}</Text> : null}
       </View>
 
       <Text style={styles.sectionTitle}>Share Your Experience</Text>
@@ -105,6 +101,21 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
         <Image source={{ uri: photo.uri }} style={styles.photoPreview} resizeMode="cover" />
       )}
 
+      <View style={styles.anonymousRow}>
+        <View>
+          <Text style={styles.label}>Post anonymously</Text>
+          <Text style={styles.anonymousNote}>
+            {anonymous ? 'Your name will show as "Anonymous User"' : 'Your name will be visible to others'}
+          </Text>
+        </View>
+        <Switch
+          value={anonymous}
+          onValueChange={setAnonymous}
+          trackColor={{ false: '#ccc', true: '#9b59b6' }}
+          thumbColor="#fff"
+        />
+      </View>
+
       <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Feedback</Text>}
       </TouchableOpacity>
@@ -130,6 +141,8 @@ const styles = StyleSheet.create({
   imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#9b59b6', borderStyle: 'dashed', borderRadius: 10, padding: 20, alignItems: 'center', marginBottom: 15 },
   imagePickerText: { color: '#9b59b6', fontWeight: 'bold', fontSize: 16 },
   photoPreview: { width: '100%', height: 200, borderRadius: 10, marginBottom: 15 },
+  anonymousRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: '#ddd' },
+  anonymousNote: { fontSize: 12, color: '#888', marginTop: 2 },
   submitButton: { backgroundColor: '#9b59b6', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   submitButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   cancelButton: { borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 30 },

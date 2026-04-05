@@ -7,12 +7,13 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
-const MyDonationsScreen = () => {
+const MyDonationsScreen = ({ route }) => {
+  const prefilledCampaign = route?.params?.campaign || '';
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [campaign, setCampaign] = useState('');
+  const [showForm, setShowForm] = useState(!!prefilledCampaign);
+  const [campaign, setCampaign] = useState(prefilledCampaign);
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [receiptImage, setReceiptImage] = useState(null);

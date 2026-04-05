@@ -63,7 +63,13 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
         <Text style={styles.cardTitle}>{item.title}</Text>
         <Text style={styles.cardDetail}>🏢 {item.organization}</Text>
         <Text style={styles.cardDetail}>📍 {item.location}</Text>
-        <Text style={styles.cardDetail}>📅 {new Date(item.date).toDateString()}</Text>
+        <Text style={styles.cardDetail}>
+          📅 {item.startDate
+            ? `${new Date(item.startDate).toDateString()} — ${new Date(item.endDate).toDateString()}`
+            : item.date
+              ? new Date(item.date).toDateString()
+              : 'Date not set'}
+        </Text>
       </View>
       <TouchableOpacity style={styles.removeButton} onPress={() => handleRemove(item._id)}>
         <Text style={styles.removeButtonText}>✕ Remove</Text>

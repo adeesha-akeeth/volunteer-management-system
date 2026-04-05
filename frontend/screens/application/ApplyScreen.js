@@ -77,7 +77,13 @@ const ApplyScreen = ({ route, navigation }) => {
         <Text style={styles.opportunityTitle}>{opportunity.title}</Text>
         <Text style={styles.opportunityOrg}>🏢 {opportunity.organization}</Text>
         <Text style={styles.opportunityLocation}>📍 {opportunity.location}</Text>
-        <Text style={styles.opportunityDate}>📅 {new Date(opportunity.date).toDateString()}</Text>
+        <Text style={styles.opportunityDate}>
+          📅 {opportunity.startDate
+            ? `${new Date(opportunity.startDate).toDateString()} — ${new Date(opportunity.endDate).toDateString()}`
+            : opportunity.date
+              ? new Date(opportunity.date).toDateString()
+              : 'Date not set'}
+        </Text>
       </View>
 
       <Text style={styles.sectionTitle}>Your Application</Text>

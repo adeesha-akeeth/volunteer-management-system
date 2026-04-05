@@ -77,7 +77,13 @@ const MyApplicationsScreen = ({ navigation }) => {
       </View>
       <Text style={styles.cardDetail}>🏢 {item.opportunity?.organization}</Text>
       <Text style={styles.cardDetail}>📍 {item.opportunity?.location}</Text>
-      <Text style={styles.cardDetail}>📅 {new Date(item.opportunity?.date).toDateString()}</Text>
+      <Text style={styles.cardDetail}>
+        📅 {item.opportunity?.startDate
+          ? `${new Date(item.opportunity.startDate).toDateString()} — ${new Date(item.opportunity.endDate).toDateString()}`
+          : item.opportunity?.date
+            ? new Date(item.opportunity.date).toDateString()
+            : 'Date not set'}
+      </Text>
       <Text style={styles.cardDate}>Applied: {new Date(item.appliedAt).toDateString()}</Text>
 
       {item.status === 'completed' && (
