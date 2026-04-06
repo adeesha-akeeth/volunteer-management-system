@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Switch
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
@@ -19,6 +19,8 @@ const CreateOpportunityScreen = ({ navigation }) => {
   const [responsibleEmail, setResponsibleEmail] = useState('');
   const [responsiblePhone, setResponsiblePhone] = useState('');
   const [bannerImage, setBannerImage] = useState(null);
+  const [fundraiserEnabled, setFundraiserEnabled] = useState(false);
+  const [fundraiserTarget, setFundraiserTarget] = useState('');
   const [loading, setLoading] = useState(false);
 
   const categories = ['education', 'environment', 'health', 'community', 'animals', 'other'];
@@ -49,12 +51,18 @@ const CreateOpportunityScreen = ({ navigation }) => {
       Alert.alert('Error', 'End date must be after start date');
       return;
     }
+    if (fundraiserEnabled && (!fundraiserTarget || isNaN(fundraiserTarget) || Number(fundraiserTarget) < 1)) {
+      Alert.alert('Error', 'Please enter a valid fundraising target amount');
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
         title, description, organization, location,
         startDate, endDate, spotsAvailable, category,
-        responsibleName, responsibleEmail, responsiblePhone
+        responsibleName, responsibleEmail, responsiblePhone,
+        fundraiserEnabled: String(fundraiserEnabled),
+        fundraiserTarget: fundraiserEnabled ? fundraiserTarget : '0'
       };
 
       if (bannerImage) {
@@ -111,6 +119,31 @@ const CreateOpportunityScreen = ({ navigation }) => {
         ))}
       </View>
 
+      <View style={styles.fundraiserSection}>
+        <View style={styles.switchRow}>
+          <View>
+            <Text style={styles.label}>Add Fundraiser (optional)</Text>
+            <Text style={styles.switchSubtitle}>Let people donate to this opportunity</Text>
+          </View>
+          <Switch
+            value={fundraiserEnabled}
+            onValueChange={setFundraiserEnabled}
+            trackColor={{ false: '#ccc', true: '#27ae60' }}
+            thumbColor="#fff"
+          />
+        </View>
+        {fundraiserEnabled && (
+          <TextInput
+            style={styles.input}
+            placeholderTextColor="#999"
+            placeholder="Fundraising Target Amount (LKR) *"
+            value={fundraiserTarget}
+            onChangeText={setFundraiserTarget}
+            keyboardType="numeric"
+          />
+        )}
+      </View>
+
       <Text style={styles.label}>Banner Image (optional):</Text>
       <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
         <Text style={styles.imagePickerText}>
@@ -149,7 +182,10 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10, marginTop: 10 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   cancelButton: { borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 30 },
-  cancelButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 16 }
+  cancelButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 16 },
+  fundraiserSection: { backgroundColor: '#f0fff4', borderRadius: 10, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#27ae60' },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  switchSubtitle: { fontSize: 12, color: '#888', marginTop: 2 }
 });
 
 export default CreateOpportunityScreen;

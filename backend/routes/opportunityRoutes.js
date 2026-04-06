@@ -9,7 +9,8 @@ const {
   getOpportunityById,
   getMyOpportunities,
   updateOpportunity,
-  deleteOpportunity
+  deleteOpportunity,
+  getOpportunitiesWithFundraiser
 } = require('../controllers/opportunityController');
 
 const storage = multer.diskStorage({
@@ -29,6 +30,7 @@ const upload = multer({ storage, fileFilter });
 
 router.get('/', getOpportunities);
 router.get('/my', protect, getMyOpportunities);
+router.get('/fundraisers/list', getOpportunitiesWithFundraiser);
 router.get('/:id', getOpportunityById);
 router.post('/', protect, upload.single('bannerImage'), createOpportunity);
 router.put('/:id', protect, upload.single('bannerImage'), updateOpportunity);

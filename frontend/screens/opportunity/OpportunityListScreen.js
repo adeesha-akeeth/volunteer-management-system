@@ -119,6 +119,26 @@ const OpportunityListScreen = ({ navigation }) => {
             : 'Date not set'}
       </Text>
 
+      {/* Fundraiser mini-bar */}
+      {item.fundraiser?.enabled && (
+        <View style={styles.fundraiserMini}>
+          <View style={styles.fundraiserMiniRow}>
+            <Text style={styles.fundraiserMiniLabel}>Fundraiser</Text>
+            <Text style={styles.fundraiserMiniTarget}>Goal: LKR {item.fundraiser.targetAmount?.toLocaleString()}</Text>
+          </View>
+          <View style={styles.fundraiserMiniBarBg}>
+            <View style={[
+              styles.fundraiserMiniBarFill,
+              {
+                width: `${Math.min(100, item.fundraiser.targetAmount > 0
+                  ? Math.round(((item.fundraiser.collectedAmount || 0) / item.fundraiser.targetAmount) * 100)
+                  : 0)}%`
+              }
+            ]} />
+          </View>
+        </View>
+      )}
+
       {/* Footer */}
       <View style={styles.cardFooter}>
         <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots left</Text>
@@ -240,6 +260,12 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 15 },
   emptySubText: { fontSize: 14, color: '#999', marginTop: 5 },
+  fundraiserMini: { backgroundColor: '#f0fff4', borderRadius: 6, padding: 8, marginBottom: 8 },
+  fundraiserMiniRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  fundraiserMiniLabel: { fontSize: 11, fontWeight: 'bold', color: '#27ae60' },
+  fundraiserMiniTarget: { fontSize: 11, color: '#888' },
+  fundraiserMiniBarBg: { height: 6, backgroundColor: '#d4edda', borderRadius: 3, overflow: 'hidden' },
+  fundraiserMiniBarFill: { height: '100%', backgroundColor: '#27ae60', borderRadius: 3 },
   cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
   cardImagePlaceholder: { width: '100%', height: 100, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
   cardImagePlaceholderText: { color: '#2e86de', fontSize: 16 }

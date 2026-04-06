@@ -6,8 +6,9 @@ const donationSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  campaign: {
-    type: String,
+  opportunity: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Opportunity',
     required: true
   },
   amount: {
@@ -16,6 +17,14 @@ const donationSchema = new mongoose.Schema({
     min: 1
   },
   message: {
+    type: String,
+    default: ''
+  },
+  donorName: {
+    type: String,
+    default: ''
+  },
+  donorPhone: {
     type: String,
     default: ''
   },

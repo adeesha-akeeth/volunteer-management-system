@@ -24,6 +24,10 @@ const feedbackSchema = new mongoose.Schema({
   photo: {
     type: String,
     default: ''
+  },
+  anonymous: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

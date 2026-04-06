@@ -1,0 +1,172 @@
+import React, { useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import api from '../../api';
+
+const DonateScreen = ({ route, navigation }) => {
+  const { opportunityId, opportunityTitle } = route.params;
+  const [amount, setAmount] = useState('');
+  const [message, setMessage] = useState('');
+  const [donorName, setDonorName] = useState('');
+  const [donorPhone, setDonorPhone] = useState('');
+  const [receiptImage, setReceiptImage] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const pickReceipt = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7
+    });
+    if (!result.canceled) setReceiptImage(result.assets[0]);
+  };
+
+  const handleSubmit = async () => {
+    if (!amount || isNaN(amount) || Number(amount) < 1) {
+      Alert.alert('Error', 'Please enter a valid amount (minimum LKR 1)');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('opportunityId', opportunityId);
+      formData.append('amount', amount);
+      formData.append('message', message);
+      formData.append('donorName', donorName);
+      formData.append('donorPhone', donorPhone);
+
+      if (receiptImage) {
+        const filename = receiptImage.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        formData.append('receiptImage', { uri: receiptImage.uri, name: filename, type });
+      }
+
+      await api.post('/api/donations', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      Alert.alert(
+        'Donation Submitted!',
+        'Your donation is pending review by the opportunity creator. You can view and edit it in the Donations tab.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit donation');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.headerCard}>
+        <Text style={styles.headerLabel}>Donating to</Text>
+        <Text style={styles.headerTitle}>{opportunityTitle}</Text>
+      </View>
+
+      <View style={styles.form}>
+        <Text style={styles.sectionTitle}>Donation Details</Text>
+
+        <Text style={styles.label}>Amount (LKR) *</Text>
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#999"
+          placeholder="Enter amount"
+          value={amount}
+          onChangeText={setAmount}
+          keyboardType="numeric"
+        />
+
+        <Text style={styles.label}>Your Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#999"
+          placeholder="Full name (optional)"
+          value={donorName}
+          onChangeText={setDonorName}
+        />
+
+        <Text style={styles.label}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#999"
+          placeholder="Contact number (optional)"
+          value={donorPhone}
+          onChangeText={setDonorPhone}
+          keyboardType="phone-pad"
+        />
+
+        <Text style={styles.label}>Message (optional)</Text>
+        <TextInput
+          style={styles.textArea}
+          placeholderTextColor="#999"
+          placeholder="Leave a message..."
+          value={message}
+          onChangeText={setMessage}
+          multiline
+          numberOfLines={3}
+        />
+
+        <Text style={styles.label}>Bank Receipt Photo</Text>
+        <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
+          <Text style={styles.imagePickerText}>
+            {receiptImage ? '✅ Receipt Selected — tap to change' : '📷 Upload Bank Receipt Photo'}
+          </Text>
+        </TouchableOpacity>
+        {receiptImage && (
+          <Image source={{ uri: receiptImage.uri }} style={styles.previewImage} resizeMode="cover" />
+        )}
+
+        <View style={styles.infoBox}>
+          <Text style={styles.infoText}>
+            Your donation will be marked as pending until the organizer reviews your receipt. You can edit or delete it while it's pending.
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
+          {submitting
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.submitButtonText}>Submit Donation</Text>
+          }
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f0f4f8' },
+  headerCard: { backgroundColor: '#27ae60', padding: 20, marginBottom: 0 },
+  headerLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 4 },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  form: { padding: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
+  input: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
+  textArea: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 80, textAlignVertical: 'top', color: '#333' },
+  imagePickerButton: { backgroundColor: '#f0fff4', borderWidth: 2, borderColor: '#27ae60', borderStyle: 'dashed', borderRadius: 10, padding: 18, alignItems: 'center', marginBottom: 12 },
+  imagePickerText: { color: '#27ae60', fontWeight: 'bold', fontSize: 15 },
+  previewImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 14 },
+  infoBox: { backgroundColor: '#fff3cd', borderRadius: 10, padding: 12, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#f39c12' },
+  infoText: { color: '#856404', fontSize: 13, lineHeight: 20 },
+  submitButton: { backgroundColor: '#27ae60', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  cancelButton: { borderWidth: 1, borderColor: '#999', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 30 },
+  cancelButtonText: { color: '#555', fontWeight: 'bold', fontSize: 16 }
+});
+
+export default DonateScreen;

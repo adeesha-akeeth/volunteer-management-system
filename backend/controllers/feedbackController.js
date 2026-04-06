@@ -1,18 +1,16 @@
 const Feedback = require('../models/Feedback');
 const Opportunity = require('../models/Opportunity');
 
-// Create feedback for an opportunity
+// Create feedback for an opportunity (accessible to all authenticated users)
 const createFeedback = async (req, res) => {
   try {
-    const { opportunityId, rating, comment } = req.body;
+    const { opportunityId, rating, comment, anonymous } = req.body;
 
-    // Check if opportunity exists
     const opportunity = await Opportunity.findById(opportunityId);
     if (!opportunity) {
       return res.status(404).json({ message: 'Opportunity not found' });
     }
 
-    // Check if already submitted feedback
     const existingFeedback = await Feedback.findOne({
       opportunity: opportunityId,
       volunteer: req.user.id
@@ -21,7 +19,6 @@ const createFeedback = async (req, res) => {
       return res.status(400).json({ message: 'You have already submitted feedback for this opportunity' });
     }
 
-    // If a photo was uploaded, save its path
     const photo = req.file ? req.file.path : '';
 
     const feedback = await Feedback.create({
@@ -29,7 +26,8 @@ const createFeedback = async (req, res) => {
       opportunity: opportunityId,
       rating,
       comment,
-      photo
+      photo,
+      anonymous: anonymous === 'true' || anonymous === true
     });
 
     res.status(201).json({
@@ -44,18 +42,34 @@ const createFeedback = async (req, res) => {
 // Get all feedback for a specific opportunity
 const getFeedbackForOpportunity = async (req, res) => {
   try {
-    const feedback = await Feedback.find({ opportunity: req.params.opportunityId })
-      .populate('volunteer', 'name')
+    const feedbackList = await Feedback.find({ opportunity: req.params.opportunityId })
+      .populate('volunteer', 'name _id')
       .sort({ createdAt: -1 });
 
-    const averageRating = feedback.length > 0
-      ? feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length
+    const averageRating = feedbackList.length > 0
+      ? feedbackList.reduce((sum, f) => sum + f.rating, 0) / feedbackList.length
       : 0;
+
+    // Keep volunteer._id for ownership checks but mask name if anonymous
+    const sanitized = feedbackList.map(f => ({
+      _id: f._id,
+      volunteer: {
+        _id: f.volunteer?._id,
+        name: f.anonymous ? 'Anonymous User' : f.volunteer?.name
+      },
+      opportunity: f.opportunity,
+      rating: f.rating,
+      comment: f.comment,
+      photo: f.photo,
+      anonymous: f.anonymous,
+      createdAt: f.createdAt,
+      updatedAt: f.updatedAt
+    }));
 
     res.status(200).json({
       averageRating: averageRating.toFixed(1),
-      totalReviews: feedback.length,
-      feedback
+      totalReviews: feedbackList.length,
+      feedback: sanitized
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -66,7 +80,7 @@ const getFeedbackForOpportunity = async (req, res) => {
 const getMyFeedback = async (req, res) => {
   try {
     const feedback = await Feedback.find({ volunteer: req.user.id })
-      .populate('opportunity', 'title organization location date')
+      .populate('opportunity', 'title organization location startDate endDate')
       .sort({ createdAt: -1 });
 
     res.status(200).json(feedback);
@@ -84,14 +98,15 @@ const updateFeedback = async (req, res) => {
       return res.status(404).json({ message: 'Feedback not found' });
     }
 
-    // Only the volunteer who submitted can update
     if (feedback.volunteer.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
     const updatedData = { ...req.body };
+    if (updatedData.anonymous !== undefined) {
+      updatedData.anonymous = updatedData.anonymous === 'true' || updatedData.anonymous === true;
+    }
 
-    // If a new photo was uploaded, update it
     if (req.file) {
       updatedData.photo = req.file.path;
     }
@@ -120,7 +135,6 @@ const deleteFeedback = async (req, res) => {
       return res.status(404).json({ message: 'Feedback not found' });
     }
 
-    // Only the volunteer who submitted can delete
     if (feedback.volunteer.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }

@@ -11,6 +11,20 @@ const applyToOpportunity = async (req, res) => {
       return res.status(404).json({ message: 'Opportunity not found' });
     }
 
+    // Check if opportunity has ended
+    if (opportunity.endDate && new Date() > new Date(opportunity.endDate)) {
+      return res.status(400).json({ message: 'This opportunity has already ended and is no longer accepting applications' });
+    }
+
+    // Check if all spots are filled (count approved + completed)
+    const filledCount = await Application.countDocuments({
+      opportunity: opportunityId,
+      status: { $in: ['approved', 'completed'] }
+    });
+    if (filledCount >= opportunity.spotsAvailable) {
+      return res.status(400).json({ message: 'All spots for this opportunity are filled' });
+    }
+
     const existingApplication = await Application.findOne({
       opportunity: opportunityId,
       volunteer: req.user.id
@@ -47,7 +61,7 @@ const getMyApplications = async (req, res) => {
     if (status) filter.status = status;
 
     const applications = await Application.find(filter)
-      .populate('opportunity', 'title organization location date bannerImage')
+      .populate('opportunity', 'title organization location startDate endDate bannerImage')
       .sort({ appliedAt: -1 });
 
     res.status(200).json(applications);

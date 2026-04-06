@@ -32,8 +32,10 @@ import ProfileScreen from './screens/profile/ProfileScreen';
 import MyCertificatesScreen from './screens/certificate/MyCertificatesScreen';
 import GenerateCertificateScreen from './screens/certificate/GenerateCertificateScreen';
 
-// Donation Screen
+// Donation Screens
 import MyDonationsScreen from './screens/donation/MyDonationsScreen';
+import FundraiserListScreen from './screens/donation/FundraiserListScreen';
+import DonateScreen from './screens/donation/DonateScreen';
 
 // Favourites Screens
 import FavouritesScreen from './screens/favourites/FavouritesScreen';
@@ -62,10 +64,19 @@ const MainTabs = () => (
   >
     <Tab.Screen name="Home" component={HomeStack} />
     <Tab.Screen name="Favourites" component={FavouritesStack} />
-    <Tab.Screen name="Donations" component={MyDonationsScreen} />
+    <Tab.Screen name="Donations" component={DonationsStack} />
     <Tab.Screen name="Certificates" component={MyCertificatesScreen} />
     <Tab.Screen name="Profile" component={ProfileStack} />
   </Tab.Navigator>
+);
+
+const DonationsStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen name="MyDonations" component={MyDonationsScreen} options={{ title: 'My Donations' }} />
+    <Stack.Screen name="FundraiserList" component={FundraiserListScreen} options={{ title: 'Support a Cause' }} />
+    <Stack.Screen name="OpportunityDetailFromDonations" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
+    <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
+  </Stack.Navigator>
 );
 
 const HomeStack = () => (
@@ -77,6 +88,7 @@ const HomeStack = () => (
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Applications' }} />
     <Stack.Screen name="GenerateCertificate" component={GenerateCertificateScreen} options={{ title: 'Generate Certificate' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
+    <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
   </Stack.Navigator>
 );
 
@@ -85,6 +97,7 @@ const FavouritesStack = () => (
     <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
     <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
     <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
+    <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
   </Stack.Navigator>
 );
 

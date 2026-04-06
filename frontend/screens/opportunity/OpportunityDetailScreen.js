@@ -18,6 +18,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [isCreator, setIsCreator] = useState(false);
   const [isPast, setIsPast] = useState(false);
   const [isSlotsFilled, setIsSlotsFilled] = useState(false);
+  const [collectedAmount, setCollectedAmount] = useState(0);
 
   // Comment form state
   const [showForm, setShowForm] = useState(false);
@@ -42,6 +43,20 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       const now = new Date();
       if (opp.endDate && now > new Date(opp.endDate)) {
         setIsPast(true);
+      }
+
+      if (opp.fundraiser?.enabled) {
+        try {
+          const donRes = await api.get(`/api/donations/opportunity/${opportunityId}`);
+          setCollectedAmount(donRes.data.confirmedTotal || 0);
+        } catch (_) {
+          // non-creators get 403; compute from fundraiser list instead
+          try {
+            const listRes = await api.get('/api/opportunities/fundraisers/list');
+            const match = listRes.data.find(o => o._id === opportunityId);
+            if (match) setCollectedAmount(match.fundraiser?.collectedAmount || 0);
+          } catch (__) {}
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load opportunity details');
@@ -247,6 +262,40 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         <Text style={styles.description}>{opportunity.description}</Text>
       </View>
 
+      {/* Fundraiser Bar */}
+      {opportunity.fundraiser?.enabled && (
+        <View style={styles.fundraiserCard}>
+          <Text style={styles.fundraiserTitle}>Fundraiser</Text>
+          <View style={styles.fundraiserAmounts}>
+            <Text style={styles.fundraiserCollected}>LKR {collectedAmount.toLocaleString()}</Text>
+            <Text style={styles.fundraiserTarget}> of LKR {opportunity.fundraiser.targetAmount?.toLocaleString()} goal</Text>
+          </View>
+          <View style={styles.progressBarBg}>
+            <View style={[
+              styles.progressBarFill,
+              {
+                width: `${Math.min(100, opportunity.fundraiser.targetAmount > 0
+                  ? (collectedAmount / opportunity.fundraiser.targetAmount) * 100
+                  : 0)}%`
+              }
+            ]} />
+          </View>
+          <Text style={styles.fundraiserPct}>
+            {opportunity.fundraiser.targetAmount > 0
+              ? `${Math.round((collectedAmount / opportunity.fundraiser.targetAmount) * 100)}% funded`
+              : '0% funded'}
+          </Text>
+          {!isCreator && (
+            <TouchableOpacity
+              style={styles.donateNowButton}
+              onPress={() => navigation.navigate('Donate', { opportunityId, opportunityTitle: opportunity.title })}
+            >
+              <Text style={styles.donateNowButtonText}>Donate Now</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         {isCreator ? (
@@ -280,12 +329,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={styles.donateButton}
-          onPress={() => navigation.navigate('Donations', { campaign: opportunity.title })}
-        >
-          <Text style={styles.donateButtonText}>💰 Donate to this Cause</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Comments / Reviews Section */}
@@ -436,8 +479,16 @@ const styles = StyleSheet.create({
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   deleteButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  donateButton: { backgroundColor: '#f39c12', borderRadius: 10, padding: 15, alignItems: 'center' },
-  donateButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  fundraiserCard: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
+  fundraiserTitle: { fontSize: 16, fontWeight: 'bold', color: '#27ae60', marginBottom: 8 },
+  fundraiserAmounts: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
+  fundraiserCollected: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  fundraiserTarget: { fontSize: 14, color: '#888' },
+  progressBarBg: { height: 12, backgroundColor: '#e0e0e0', borderRadius: 6, overflow: 'hidden', marginBottom: 6 },
+  progressBarFill: { height: '100%', backgroundColor: '#27ae60', borderRadius: 6 },
+  fundraiserPct: { fontSize: 12, color: '#888', marginBottom: 12 },
+  donateNowButton: { backgroundColor: '#27ae60', borderRadius: 8, padding: 12, alignItems: 'center' },
+  donateNowButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   noFeedbackText: { color: '#999', fontSize: 14, textAlign: 'center', padding: 10 },
   feedbackItem: { borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingVertical: 12 },
   feedbackHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
