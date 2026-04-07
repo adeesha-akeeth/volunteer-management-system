@@ -16,14 +16,14 @@
       "newArchEnabled": false
     },
     "android": {
-  "adaptiveIcon": {
-    "foregroundImage": "./assets/icon.png",
-    "backgroundColor": "#ffffff"
-  },
-  "package": "com.adeeshaakeeth.frontend",
-  "newArchEnabled": false,
-  "gradleVersion": "8.6"
-},
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.adeeshaakeeth.frontend",
+      "newArchEnabled": false,
+      "gradleVersion": "8.6"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
@@ -31,6 +31,9 @@
       "eas": {
         "projectId": "c222c7bb-5202-4d33-9a2f-5bd81a9a28c5"
       }
-    }
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

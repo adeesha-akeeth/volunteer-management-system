@@ -50,10 +50,6 @@ const opportunitySchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  fundraiser: {
-    enabled: { type: Boolean, default: false },
-    targetAmount: { type: Number, default: 0 }
-  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

@@ -9,28 +9,17 @@ const {
   getOpportunityById,
   getMyOpportunities,
   updateOpportunity,
-  deleteOpportunity,
-  getOpportunitiesWithFundraiser
+  deleteOpportunity
 } = require('../controllers/opportunityController');
 
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
-  }
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname))
 });
-
-const fileFilter = (req, file, cb) => {
-  cb(null, true);
-};
-
-const upload = multer({ storage, fileFilter });
+const upload = multer({ storage });
 
 router.get('/', getOpportunities);
 router.get('/my', protect, getMyOpportunities);
-router.get('/fundraisers/list', getOpportunitiesWithFundraiser);
 router.get('/:id', getOpportunityById);
 router.post('/', protect, upload.single('bannerImage'), createOpportunity);
 router.put('/:id', protect, upload.single('bannerImage'), updateOpportunity);

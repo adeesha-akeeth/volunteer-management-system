@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Switch
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Switch, Platform
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
+
+const fmt = (d) => d ? new Date(d).toDateString() : null;
 
 const CreateOpportunityScreen = ({ navigation }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [organization, setOrganization] = useState('');
   const [location, setLocation] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   const [spotsAvailable, setSpotsAvailable] = useState('');
   const [category, setCategory] = useState('other');
   const [responsibleName, setResponsibleName] = useState('');
@@ -20,62 +23,88 @@ const CreateOpportunityScreen = ({ navigation }) => {
   const [responsiblePhone, setResponsiblePhone] = useState('');
   const [bannerImage, setBannerImage] = useState(null);
   const [fundraiserEnabled, setFundraiserEnabled] = useState(false);
+  const [fundraiserName, setFundraiserName] = useState('');
   const [fundraiserTarget, setFundraiserTarget] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Date picker state
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState(null);
+
   const categories = ['education', 'environment', 'health', 'community', 'animals', 'other'];
+
+  const openDatePicker = (target) => {
+    setPickerTarget(target);
+    setShowPicker(true);
+  };
+
+  const onDateChange = (event, selected) => {
+    setShowPicker(Platform.OS === 'ios');
+    if (event.type === 'dismissed') return;
+    if (selected) {
+      const iso = selected.toISOString().substring(0, 10);
+      if (pickerTarget === 'start') setStartDate(iso);
+      else setEndDate(iso);
+    }
+  };
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
-      return;
-    }
+    if (!permission.granted) { Alert.alert('Permission required', 'Please allow photo access'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.7
+      allowsEditing: true, aspect: [16, 9], quality: 0.7
     });
-    if (!result.canceled) {
-      setBannerImage(result.assets[0]);
-    }
+    if (!result.canceled) setBannerImage(result.assets[0]);
   };
 
   const handleCreate = async () => {
     if (!title || !description || !location || !startDate || !endDate || !spotsAvailable) {
-      Alert.alert('Error', 'Please fill in all required fields (title, description, location, start date, end date, spots)');
+      Alert.alert('Missing Fields', 'Please fill in all required fields (title, description, location, dates, spots)');
       return;
     }
     if (new Date(startDate) >= new Date(endDate)) {
-      Alert.alert('Error', 'End date must be after start date');
+      Alert.alert('Invalid Dates', 'End date must be after start date');
       return;
     }
-    if (fundraiserEnabled && (!fundraiserTarget || isNaN(fundraiserTarget) || Number(fundraiserTarget) < 1)) {
-      Alert.alert('Error', 'Please enter a valid fundraising target amount');
-      return;
+    if (fundraiserEnabled) {
+      if (!fundraiserName) { Alert.alert('Missing Field', 'Please enter a fundraiser name'); return; }
+      if (!fundraiserTarget || isNaN(fundraiserTarget) || Number(fundraiserTarget) < 1) {
+        Alert.alert('Invalid Amount', 'Please enter a valid fundraising target amount'); return;
+      }
     }
+
     setLoading(true);
     try {
       const payload = {
         title, description, organization, location,
         startDate, endDate, spotsAvailable, category,
-        responsibleName, responsibleEmail, responsiblePhone,
-        fundraiserEnabled: String(fundraiserEnabled),
-        fundraiserTarget: fundraiserEnabled ? fundraiserTarget : '0'
+        responsibleName, responsibleEmail, responsiblePhone
       };
 
+      let createdOpp;
       if (bannerImage) {
         const formData = new FormData();
-        Object.entries(payload).forEach(([key, val]) => formData.append(key, val));
+        Object.entries(payload).forEach(([k, v]) => formData.append(k, v));
         const filename = bannerImage.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        formData.append('bannerImage', { uri: bannerImage.uri, name: filename, type });
-        await api.post('/api/opportunities', formData);
+        formData.append('bannerImage', { uri: bannerImage.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
+        const res = await api.post('/api/opportunities', formData);
+        createdOpp = res.data.opportunity;
       } else {
-        await api.post('/api/opportunities', payload);
+        const res = await api.post('/api/opportunities', payload);
+        createdOpp = res.data.opportunity;
       }
+
+      // Create fundraiser if enabled
+      if (fundraiserEnabled && createdOpp) {
+        await api.post('/api/fundraisers', {
+          opportunityId: createdOpp._id,
+          name: fundraiserName || title,
+          targetAmount: fundraiserTarget
+        });
+      }
+
       Alert.alert('Success', 'Opportunity created successfully!', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
@@ -96,63 +125,66 @@ const CreateOpportunityScreen = ({ navigation }) => {
       <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Location *" value={location} onChangeText={setLocation} />
 
       <Text style={styles.label}>Event Dates *</Text>
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Start Date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="End Date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
+      <TouchableOpacity style={styles.dateButton} onPress={() => openDatePicker('start')}>
+        <Text style={[styles.dateButtonText, !startDate && styles.datePlaceholder]}>
+          {startDate ? `Start: ${fmt(startDate)}` : 'Select Start Date *'}
+        </Text>
+        <Text style={styles.dateIcon}>📅</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.dateButton} onPress={() => openDatePicker('end')}>
+        <Text style={[styles.dateButtonText, !endDate && styles.datePlaceholder]}>
+          {endDate ? `End: ${fmt(endDate)}` : 'Select End Date *'}
+        </Text>
+        <Text style={styles.dateIcon}>📅</Text>
+      </TouchableOpacity>
+
+      {showPicker && (
+        <DateTimePicker
+          value={pickerTarget === 'start' ? (startDate ? new Date(startDate) : new Date()) : (endDate ? new Date(endDate) : new Date())}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+        />
+      )}
 
       <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Spots Available *" value={spotsAvailable} onChangeText={setSpotsAvailable} keyboardType="numeric" />
 
       <Text style={styles.label}>Responsible Person</Text>
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Responsible Person Name" value={responsibleName} onChangeText={setResponsibleName} />
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Responsible Person Email" value={responsibleEmail} onChangeText={setResponsibleEmail} keyboardType="email-address" autoCapitalize="none" />
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Responsible Person Phone" value={responsiblePhone} onChangeText={setResponsiblePhone} keyboardType="phone-pad" />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Name" value={responsibleName} onChangeText={setResponsibleName} />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Email" value={responsibleEmail} onChangeText={setResponsibleEmail} keyboardType="email-address" autoCapitalize="none" />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Phone" value={responsiblePhone} onChangeText={setResponsiblePhone} keyboardType="phone-pad" />
 
-      <Text style={styles.label}>Select Category:</Text>
+      <Text style={styles.label}>Category</Text>
       <View style={styles.categoryContainer}>
         {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[styles.categoryButton, category === cat && styles.categoryButtonActive]}
-            onPress={() => setCategory(cat)}
-          >
+          <TouchableOpacity key={cat} style={[styles.categoryButton, category === cat && styles.categoryButtonActive]} onPress={() => setCategory(cat)}>
             <Text style={[styles.categoryText, category === cat && styles.categoryTextActive]}>{cat}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
+      {/* Fundraiser section */}
       <View style={styles.fundraiserSection}>
         <View style={styles.switchRow}>
-          <View>
-            <Text style={styles.label}>Add Fundraiser (optional)</Text>
-            <Text style={styles.switchSubtitle}>Let people donate to this opportunity</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchLabel}>Add a Fundraiser</Text>
+            <Text style={styles.switchSub}>Allow people to donate to this opportunity</Text>
           </View>
-          <Switch
-            value={fundraiserEnabled}
-            onValueChange={setFundraiserEnabled}
-            trackColor={{ false: '#ccc', true: '#27ae60' }}
-            thumbColor="#fff"
-          />
+          <Switch value={fundraiserEnabled} onValueChange={setFundraiserEnabled} trackColor={{ false: '#ccc', true: '#27ae60' }} thumbColor="#fff" />
         </View>
         {fundraiserEnabled && (
-          <TextInput
-            style={styles.input}
-            placeholderTextColor="#999"
-            placeholder="Fundraising Target Amount (LKR) *"
-            value={fundraiserTarget}
-            onChangeText={setFundraiserTarget}
-            keyboardType="numeric"
-          />
+          <>
+            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Fundraiser Name *  (e.g. 'Tree Planting Fund')" value={fundraiserName} onChangeText={setFundraiserName} />
+            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Target Amount (LKR) *" value={fundraiserTarget} onChangeText={setFundraiserTarget} keyboardType="numeric" />
+          </>
         )}
       </View>
 
-      <Text style={styles.label}>Banner Image (optional):</Text>
+      <Text style={styles.label}>Banner Image (optional)</Text>
       <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
-        <Text style={styles.imagePickerText}>
-          {bannerImage ? '✅ Image Selected' : '📷 Pick Banner Image'}
-        </Text>
+        <Text style={styles.imagePickerText}>{bannerImage ? '✅ Image Selected' : '📷 Pick Banner Image'}</Text>
       </TouchableOpacity>
-      {bannerImage && (
-        <Image source={{ uri: bannerImage.uri }} style={styles.previewImage} />
-      )}
+      {bannerImage && <Image source={{ uri: bannerImage.uri }} style={styles.previewImage} />}
 
       <TouchableOpacity style={styles.button} onPress={handleCreate} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Opportunity</Text>}
@@ -168,24 +200,29 @@ const CreateOpportunityScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
   heading: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
-  input: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
-  textArea: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 100, textAlignVertical: 'top', color: '#333' },
-  label: { fontSize: 16, color: '#333', marginBottom: 8, fontWeight: 'bold', marginTop: 4 },
+  input: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
+  textArea: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 100, textAlignVertical: 'top', color: '#333' },
+  label: { fontSize: 15, color: '#333', marginBottom: 8, fontWeight: 'bold', marginTop: 4 },
+  dateButton: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#ddd', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dateButtonText: { fontSize: 15, color: '#333' },
+  datePlaceholder: { color: '#999' },
+  dateIcon: { fontSize: 18 },
   categoryContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  categoryButton: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#2e86de' },
+  categoryButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#2e86de' },
   categoryButtonActive: { backgroundColor: '#2e86de' },
-  categoryText: { color: '#2e86de', fontWeight: 'bold' },
+  categoryText: { color: '#2e86de', fontWeight: 'bold', fontSize: 13 },
   categoryTextActive: { color: '#fff' },
+  fundraiserSection: { backgroundColor: '#f0fff4', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#27ae60' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  switchLabel: { fontSize: 15, fontWeight: 'bold', color: '#333' },
+  switchSub: { fontSize: 12, color: '#888', marginTop: 2 },
   imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#2e86de', borderStyle: 'dashed', borderRadius: 10, padding: 20, alignItems: 'center', marginBottom: 15 },
-  imagePickerText: { color: '#2e86de', fontWeight: 'bold', fontSize: 16 },
+  imagePickerText: { color: '#2e86de', fontWeight: 'bold', fontSize: 15 },
   previewImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 15 },
   button: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10, marginTop: 10 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   cancelButton: { borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 30 },
-  cancelButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 16 },
-  fundraiserSection: { backgroundColor: '#f0fff4', borderRadius: 10, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#27ae60' },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  switchSubtitle: { fontSize: 12, color: '#888', marginTop: 2 }
+  cancelButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 16 }
 });
 
 export default CreateOpportunityScreen;

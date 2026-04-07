@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, Image, TextInput, Switch
+  TouchableOpacity, ActivityIndicator, Alert, Image, TextInput, Switch, Modal, FlatList
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
@@ -17,8 +17,11 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [isCreator, setIsCreator] = useState(false);
   const [isPast, setIsPast] = useState(false);
-  const [isSlotsFilled, setIsSlotsFilled] = useState(false);
-  const [collectedAmount, setCollectedAmount] = useState(0);
+
+  // Donors modal
+  const [donorsModal, setDonorsModal] = useState(null); // fundraiser obj
+  const [donors, setDonors] = useState([]);
+  const [donorsLoading, setDonorsLoading] = useState(false);
 
   // Comment form state
   const [showForm, setShowForm] = useState(false);
@@ -31,181 +34,109 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
 
   const fetchData = async () => {
     try {
-      const [oppResponse, feedbackResponse] = await Promise.all([
+      const [oppRes, feedbackRes] = await Promise.all([
         api.get(`/api/opportunities/${opportunityId}`),
         api.get(`/api/feedback/opportunity/${opportunityId}`)
       ]);
-      const opp = oppResponse.data;
+      const opp = oppRes.data;
       setOpportunity(opp);
-      setFeedback(feedbackResponse.data.feedback || []);
+      setFeedback(feedbackRes.data.feedback || []);
       setIsCreator(opp.createdBy?._id === user?.id);
-
-      const now = new Date();
-      if (opp.endDate && now > new Date(opp.endDate)) {
-        setIsPast(true);
-      }
-
-      if (opp.fundraiser?.enabled) {
-        try {
-          const donRes = await api.get(`/api/donations/opportunity/${opportunityId}`);
-          setCollectedAmount(donRes.data.confirmedTotal || 0);
-        } catch (_) {
-          // non-creators get 403; compute from fundraiser list instead
-          try {
-            const listRes = await api.get('/api/opportunities/fundraisers/list');
-            const match = listRes.data.find(o => o._id === opportunityId);
-            if (match) setCollectedAmount(match.fundraiser?.collectedAmount || 0);
-          } catch (__) {}
-        }
-      }
-    } catch (error) {
+      if (opp.endDate && new Date() > new Date(opp.endDate)) setIsPast(true);
+    } catch {
       Alert.alert('Error', 'Failed to load opportunity details');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // Determine if current user already has feedback
+  const openDonors = async (fundraiser) => {
+    setDonorsModal(fundraiser);
+    setDonorsLoading(true);
+    try {
+      const res = await api.get(`/api/fundraisers/${fundraiser._id}/donors`);
+      setDonors(res.data.donors);
+    } catch {
+      setDonors([]);
+    } finally {
+      setDonorsLoading(false);
+    }
+  };
+
   const myFeedback = feedback.find(f => f.volunteer?._id === user?.id);
 
-  const handleDelete = async () => {
-    Alert.alert('Confirm Delete', 'Are you sure?', [
+  const handleDelete = () => {
+    Alert.alert('Delete Opportunity', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
             await api.delete(`/api/opportunities/${opportunityId}`);
-            Alert.alert('Success', 'Opportunity deleted');
+            Alert.alert('Deleted', 'Opportunity removed');
             navigation.goBack();
-          } catch (error) {
-            Alert.alert('Error', 'Failed to delete');
-          }
+          } catch { Alert.alert('Error', 'Failed to delete'); }
         }
       }
     ]);
   };
 
   const pickPhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.7
-    });
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.7 });
     if (!result.canceled) setFormPhoto(result.assets[0]);
   };
 
-  const openAddForm = () => {
-    setEditingId(null);
-    setFormRating(0);
-    setFormComment('');
-    setFormPhoto(null);
-    setFormAnonymous(false);
-    setShowForm(true);
-  };
-
-  const openEditForm = (item) => {
-    setEditingId(item._id);
-    setFormRating(item.rating);
-    setFormComment(item.comment || '');
-    setFormPhoto(null);
-    setFormAnonymous(item.anonymous || false);
-    setShowForm(true);
-  };
-
-  const closeForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setFormRating(0);
-    setFormComment('');
-    setFormPhoto(null);
-    setFormAnonymous(false);
-  };
+  const openAddForm = () => { setEditingId(null); setFormRating(0); setFormComment(''); setFormPhoto(null); setFormAnonymous(false); setShowForm(true); };
+  const openEditForm = (item) => { setEditingId(item._id); setFormRating(item.rating); setFormComment(item.comment || ''); setFormPhoto(null); setFormAnonymous(item.anonymous || false); setShowForm(true); };
+  const closeForm = () => { setShowForm(false); setEditingId(null); setFormRating(0); setFormComment(''); setFormPhoto(null); setFormAnonymous(false); };
 
   const handleSubmitComment = async () => {
-    if (!formRating) {
-      Alert.alert('Error', 'Please select a rating');
-      return;
-    }
+    if (!formRating) { Alert.alert('Rating required', 'Please select a star rating'); return; }
     setFormLoading(true);
     try {
-      const buildForm = (fd) => {
-        fd.append('opportunityId', opportunityId);
+      const buildFD = () => {
+        const fd = new FormData();
         fd.append('rating', formRating.toString());
         fd.append('comment', formComment);
         fd.append('anonymous', formAnonymous.toString());
         if (formPhoto) {
           const filename = formPhoto.uri.split('/').pop();
           const match = /\.(\w+)$/.exec(filename);
-          const type = match ? `image/${match[1]}` : 'image/jpeg';
-          fd.append('photo', { uri: formPhoto.uri, name: filename, type });
+          fd.append('photo', { uri: formPhoto.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
         }
         return fd;
       };
-
       if (editingId) {
-        const formData = new FormData();
-        formData.append('rating', formRating.toString());
-        formData.append('comment', formComment);
-        formData.append('anonymous', formAnonymous.toString());
-        if (formPhoto) {
-          const filename = formPhoto.uri.split('/').pop();
-          const match = /\.(\w+)$/.exec(filename);
-          const type = match ? `image/${match[1]}` : 'image/jpeg';
-          formData.append('photo', { uri: formPhoto.uri, name: filename, type });
-        }
-        await api.put(`/api/feedback/${editingId}`, formData);
+        await api.put(`/api/feedback/${editingId}`, buildFD());
       } else {
-        const formData = buildForm(new FormData());
-        await api.post('/api/feedback', formData);
+        const fd = buildFD();
+        fd.append('opportunityId', opportunityId);
+        await api.post('/api/feedback', fd);
       }
-
       closeForm();
       await fetchData();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed');
+      Alert.alert('Error', error.response?.data?.message || 'Failed');
     } finally {
       setFormLoading(false);
     }
   };
 
   const handleDeleteComment = (feedbackId) => {
-    Alert.alert('Delete Comment', 'Are you sure you want to delete your comment?', [
+    Alert.alert('Delete Comment', 'Remove your review?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/feedback/${feedbackId}`);
-            fetchData();
-          } catch (error) {
-            Alert.alert('Error', 'Failed to delete comment');
-          }
-        }
-      }
+      { text: 'Delete', style: 'destructive', onPress: async () => { try { await api.delete(`/api/feedback/${feedbackId}`); fetchData(); } catch { Alert.alert('Error', 'Failed'); } } }
     ]);
   };
 
-  const renderStars = (rating) => {
-    let stars = '';
-    for (let i = 1; i <= 5; i++) stars += i <= rating ? '⭐' : '☆';
-    return stars;
-  };
+  const renderStars = (r) => [1,2,3,4,5].map(i => i <= r ? '⭐' : '☆').join('');
 
   const formatDateRange = (opp) => {
-    if (opp.startDate && opp.endDate) {
-      return `${new Date(opp.startDate).toDateString()} — ${new Date(opp.endDate).toDateString()}`;
-    }
-    if (opp.startDate) return new Date(opp.startDate).toDateString();
+    if (opp.startDate && opp.endDate) return `${new Date(opp.startDate).toDateString()} — ${new Date(opp.endDate).toDateString()}`;
     if (opp.date) return new Date(opp.date).toDateString();
     return 'Date not set';
   };
@@ -213,98 +144,83 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
   if (!opportunity) return <View style={styles.centered}><Text>Opportunity not found</Text></View>;
 
-  const canApply = !isCreator && !isPast && !isSlotsFilled;
-
   return (
     <ScrollView style={styles.container}>
-      {/* Banner Image */}
+      {/* Banner */}
       {opportunity.bannerImage ? (
-        <Image
-          source={{ uri: `${BASE_URL}/${opportunity.bannerImage}` }}
-          style={styles.bannerImage}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: `${BASE_URL}/${opportunity.bannerImage}` }} style={styles.bannerImage} resizeMode="cover" />
       ) : null}
 
-      {/* Past Event Banner */}
-      {isPast && (
-        <View style={styles.pastBanner}>
-          <Text style={styles.pastBannerText}>⏰ This opportunity has ended</Text>
-        </View>
-      )}
+      {isPast && <View style={styles.pastBanner}><Text style={styles.pastBannerText}>⏰ This opportunity has ended</Text></View>}
 
-      {/* Header */}
       <View style={styles.headerCard}>
         <Text style={styles.title}>{opportunity.title}</Text>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{opportunity.category}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.categoryBadge}><Text style={styles.categoryText}>{opportunity.category}</Text></View>
+          {opportunity.averageRating && (
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingText}>⭐ {opportunity.averageRating} ({opportunity.reviewCount})</Text>
+            </View>
+          )}
         </View>
       </View>
 
-      {/* Details */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
         {opportunity.organization ? <Text style={styles.detail}>🏢 {opportunity.organization}</Text> : null}
         <Text style={styles.detail}>📍 {opportunity.location}</Text>
         <Text style={styles.detail}>📅 {formatDateRange(opportunity)}</Text>
-        <Text style={[styles.detail, isSlotsFilled ? styles.filledText : null]}>
-          👥 {isSlotsFilled ? 'All spots filled' : `${opportunity.spotsAvailable} spots available`}
-        </Text>
+        <Text style={styles.detail}>👥 {opportunity.spotsAvailable} spots available</Text>
         <Text style={styles.detail}>👤 Posted by: {opportunity.createdBy?.name}</Text>
-        {opportunity.responsibleName ? <Text style={styles.detail}>🙋 Contact: {opportunity.responsibleName}</Text> : null}
+        {opportunity.responsibleName ? <Text style={styles.detail}>🙋 {opportunity.responsibleName}</Text> : null}
         {opportunity.responsibleEmail ? <Text style={styles.detail}>✉️ {opportunity.responsibleEmail}</Text> : null}
         {opportunity.responsiblePhone ? <Text style={styles.detail}>📞 {opportunity.responsiblePhone}</Text> : null}
       </View>
 
-      {/* Description */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>About This Opportunity</Text>
+        <Text style={styles.sectionTitle}>About</Text>
         <Text style={styles.description}>{opportunity.description}</Text>
       </View>
 
-      {/* Fundraiser Bar */}
-      {opportunity.fundraiser?.enabled && (
-        <View style={styles.fundraiserCard}>
-          <Text style={styles.fundraiserTitle}>Fundraiser</Text>
-          <View style={styles.fundraiserAmounts}>
-            <Text style={styles.fundraiserCollected}>LKR {collectedAmount.toLocaleString()}</Text>
-            <Text style={styles.fundraiserTarget}> of LKR {opportunity.fundraiser.targetAmount?.toLocaleString()} goal</Text>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View style={[
-              styles.progressBarFill,
-              {
-                width: `${Math.min(100, opportunity.fundraiser.targetAmount > 0
-                  ? (collectedAmount / opportunity.fundraiser.targetAmount) * 100
-                  : 0)}%`
-              }
-            ]} />
-          </View>
-          <Text style={styles.fundraiserPct}>
-            {opportunity.fundraiser.targetAmount > 0
-              ? `${Math.round((collectedAmount / opportunity.fundraiser.targetAmount) * 100)}% funded`
-              : '0% funded'}
-          </Text>
-          {!isCreator && (
-            <TouchableOpacity
-              style={styles.donateNowButton}
-              onPress={() => navigation.navigate('Donate', { opportunityId, opportunityTitle: opportunity.title })}
-            >
-              <Text style={styles.donateNowButtonText}>Donate Now</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      {/* Fundraisers */}
+      {opportunity.fundraisers?.map(fr => {
+        const pct = fr.targetAmount > 0 ? Math.min(100, Math.round((fr.collectedAmount / fr.targetAmount) * 100)) : 0;
+        return (
+          <View key={fr._id} style={[styles.fundraiserCard, fr.status === 'completed' && styles.fundraiserCardDone]}>
+            <View style={styles.fundraiserHeader}>
+              <Text style={styles.fundraiserName}>{fr.name}</Text>
+              {fr.status === 'completed' && <View style={styles.completedBadge}><Text style={styles.completedText}>Completed</Text></View>}
+            </View>
+            <View style={styles.amountRow}>
+              <Text style={styles.collected}>LKR {fr.collectedAmount.toLocaleString()}</Text>
+              <Text style={styles.target}> of LKR {fr.targetAmount.toLocaleString()} goal</Text>
+            </View>
+            <View style={styles.progressBg}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
+            <Text style={styles.pctText}>{pct}% funded · {fr.donorCount} donor{fr.donorCount !== 1 ? 's' : ''}</Text>
 
-      {/* Action Buttons */}
+            <View style={styles.fundraiserButtons}>
+              <TouchableOpacity style={styles.viewDonorsBtn} onPress={() => openDonors(fr)}>
+                <Text style={styles.viewDonorsBtnText}>View Donors</Text>
+              </TouchableOpacity>
+              {!isCreator && fr.status === 'active' && (
+                <TouchableOpacity
+                  style={styles.donateBtn}
+                  onPress={() => navigation.navigate('Donate', { fundraiserId: fr._id, fundraiserName: fr.name, opportunityTitle: opportunity.title })}
+                >
+                  <Text style={styles.donateBtnText}>Donate</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        );
+      })}
+
+      {/* Actions */}
       <View style={styles.buttonContainer}>
         {isCreator ? (
           <>
-            <TouchableOpacity
-              style={styles.manageButton}
-              onPress={() => navigation.navigate('CreatorOpportunityDetail', { opportunityId })}
-            >
-              <Text style={styles.manageButtonText}>👥 Manage Applications</Text>
+            <TouchableOpacity style={styles.manageButton} onPress={() => navigation.navigate('CreatorOpportunityDetail', { opportunityId })}>
+              <Text style={styles.manageButtonText}>Manage</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
               <Text style={styles.deleteButtonText}>Delete Opportunity</Text>
@@ -312,138 +228,77 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           </>
         ) : (
           <TouchableOpacity
-            style={[styles.applyButton, !canApply && styles.disabledButton]}
+            style={[styles.applyButton, isPast && styles.disabledButton]}
             onPress={() => {
-              if (isPast) {
-                Alert.alert('Ended', 'This opportunity has already ended.');
-              } else if (isSlotsFilled) {
-                Alert.alert('Full', 'All spots for this opportunity are filled.');
-              } else {
-                navigation.navigate('Apply', { opportunity });
-              }
+              if (isPast) { Alert.alert('Ended', 'This opportunity has already ended.'); return; }
+              navigation.navigate('Apply', { opportunity });
             }}
-            disabled={!canApply}
+            disabled={isPast}
           >
-            <Text style={styles.applyButtonText}>
-              {isPast ? 'Opportunity Ended' : isSlotsFilled ? 'Slots Filled' : 'Apply Now'}
-            </Text>
+            <Text style={styles.applyButtonText}>{isPast ? 'Opportunity Ended' : 'Apply Now'}</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Comments / Reviews Section */}
+      {/* Reviews */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>
-          Reviews & Comments {feedback.length > 0 ? `(${feedback.length})` : ''}
-        </Text>
-
+        <Text style={styles.sectionTitle}>Reviews {feedback.length > 0 ? `(${feedback.length})` : ''}</Text>
         {feedback.length === 0 ? (
-          <Text style={styles.noFeedbackText}>No reviews yet. Be the first to share your experience!</Text>
+          <Text style={styles.noFeedbackText}>No reviews yet. Be the first!</Text>
         ) : (
-          feedback.map((item) => (
+          feedback.map(item => (
             <View key={item._id} style={styles.feedbackItem}>
               <View style={styles.feedbackHeader}>
                 <View style={styles.feedbackAvatar}>
-                  <Text style={styles.feedbackAvatarText}>
-                    {item.anonymous ? 'A' : item.volunteer?.name?.charAt(0).toUpperCase()}
-                  </Text>
+                  <Text style={styles.feedbackAvatarText}>{item.anonymous ? 'A' : item.volunteer?.name?.charAt(0).toUpperCase()}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.feedbackName}>
-                    {item.volunteer?.name}
-                    {item.anonymous && <Text style={styles.anonTag}> (anonymous)</Text>}
-                  </Text>
+                  <Text style={styles.feedbackName}>{item.volunteer?.name}{item.anonymous && <Text style={styles.anonTag}> (anonymous)</Text>}</Text>
                   <Text style={styles.feedbackStars}>{renderStars(item.rating)}</Text>
                 </View>
-                {/* Edit/Delete if own comment */}
                 {item.volunteer?._id === user?.id && (
                   <View style={styles.commentActions}>
-                    <TouchableOpacity onPress={() => openEditForm(item)} style={styles.editBtn}>
-                      <Text style={styles.editBtnText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteComment(item._id)} style={styles.deleteBtn}>
-                      <Text style={styles.deleteBtnText}>Delete</Text>
-                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => openEditForm(item)} style={styles.editBtn}><Text style={styles.editBtnText}>Edit</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDeleteComment(item._id)} style={styles.deleteBtn}><Text style={styles.deleteBtnText}>Del</Text></TouchableOpacity>
                   </View>
                 )}
               </View>
               {item.comment ? <Text style={styles.feedbackComment}>{item.comment}</Text> : null}
-              {item.photo ? (
-                <Image
-                  source={{ uri: `${BASE_URL}/${item.photo}` }}
-                  style={styles.feedbackPhoto}
-                  resizeMode="cover"
-                />
-              ) : null}
+              {item.photo ? <Image source={{ uri: `${BASE_URL}/${item.photo}` }} style={styles.feedbackPhoto} resizeMode="cover" /> : null}
               <Text style={styles.feedbackDate}>{new Date(item.createdAt).toDateString()}</Text>
             </View>
           ))
         )}
 
-        {/* Add Comment Button — only if logged in and no existing comment */}
         {user && !myFeedback && !showForm && (
           <TouchableOpacity style={styles.addCommentButton} onPress={openAddForm}>
             <Text style={styles.addCommentButtonText}>✍️ Write a Review</Text>
           </TouchableOpacity>
         )}
 
-        {/* Inline Comment Form */}
         {showForm && (
           <View style={styles.commentForm}>
-            <Text style={styles.formTitle}>{editingId ? 'Edit Your Review' : 'Write a Review'}</Text>
-
+            <Text style={styles.formTitle}>{editingId ? 'Edit Review' : 'Write a Review'}</Text>
             <Text style={styles.formLabel}>Rating *</Text>
             <View style={styles.starContainer}>
-              {[1, 2, 3, 4, 5].map((star) => (
+              {[1,2,3,4,5].map(star => (
                 <TouchableOpacity key={star} onPress={() => setFormRating(star)}>
                   <Text style={styles.star}>{formRating >= star ? '⭐' : '☆'}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-
-            <Text style={styles.formLabel}>Comment</Text>
-            <TextInput
-              style={styles.formTextArea}
-              placeholder="Share your experience..."
-              placeholderTextColor="#aaa"
-              value={formComment}
-              onChangeText={setFormComment}
-              multiline
-              numberOfLines={4}
-            />
-
+            <TextInput style={styles.formTextArea} placeholder="Share your experience..." placeholderTextColor="#aaa" value={formComment} onChangeText={setFormComment} multiline numberOfLines={4} />
             <TouchableOpacity style={styles.photoPickerButton} onPress={pickPhoto}>
-              <Text style={styles.photoPickerText}>
-                {formPhoto ? '✅ Photo selected — tap to change' : '📷 Add a Photo (optional)'}
-              </Text>
+              <Text style={styles.photoPickerText}>{formPhoto ? '✅ Photo selected' : '📷 Add a Photo (optional)'}</Text>
             </TouchableOpacity>
-            {formPhoto && (
-              <Image source={{ uri: formPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />
-            )}
-
+            {formPhoto && <Image source={{ uri: formPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />}
             <View style={styles.anonymousRow}>
               <Text style={styles.formLabel}>Post anonymously</Text>
-              <Switch
-                value={formAnonymous}
-                onValueChange={setFormAnonymous}
-                trackColor={{ false: '#ccc', true: '#2e86de' }}
-                thumbColor={formAnonymous ? '#fff' : '#fff'}
-              />
+              <Switch value={formAnonymous} onValueChange={setFormAnonymous} trackColor={{ false: '#ccc', true: '#2e86de' }} thumbColor="#fff" />
             </View>
-            {formAnonymous && (
-              <Text style={styles.anonNote}>Your name will show as "Anonymous User"</Text>
-            )}
-
             <View style={styles.formButtons}>
-              <TouchableOpacity
-                style={styles.submitCommentButton}
-                onPress={handleSubmitComment}
-                disabled={formLoading}
-              >
-                {formLoading
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.submitCommentText}>{editingId ? 'Update' : 'Submit'}</Text>
-                }
+              <TouchableOpacity style={styles.submitCommentButton} onPress={handleSubmitComment} disabled={formLoading}>
+                {formLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>{editingId ? 'Update' : 'Submit'}</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelCommentButton} onPress={closeForm}>
                 <Text style={styles.cancelCommentText}>Cancel</Text>
@@ -452,6 +307,43 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           </View>
         )}
       </View>
+
+      {/* Donors Modal */}
+      <Modal visible={!!donorsModal} animationType="slide" onRequestClose={() => setDonorsModal(null)}>
+        <View style={styles.donorsModal}>
+          <View style={styles.donorsHeader}>
+            <Text style={styles.donorsTitle}>{donorsModal?.name}</Text>
+            <TouchableOpacity onPress={() => setDonorsModal(null)} style={styles.donorsCloseBtn}>
+              <Text style={styles.donorsCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.donorsSubtitle}>Donors ranked by contribution</Text>
+          {donorsLoading ? (
+            <ActivityIndicator size="large" color="#27ae60" style={{ marginTop: 40 }} />
+          ) : donors.length === 0 ? (
+            <Text style={styles.noDonorsText}>No confirmed donors yet</Text>
+          ) : (
+            <FlatList
+              data={donors}
+              keyExtractor={(_, i) => i.toString()}
+              contentContainerStyle={{ padding: 15 }}
+              renderItem={({ item }) => (
+                <View style={[styles.donorCard, item.rank <= 3 && styles.donorCardTop]}>
+                  <View style={styles.donorRank}>
+                    <Text style={styles.donorRankText}>{item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : `#${item.rank}`}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.donorName}>{item.name}</Text>
+                    {item.message ? <Text style={styles.donorMessage}>"{item.message}"</Text> : null}
+                    <Text style={styles.donorDate}>{new Date(item.date).toDateString()}</Text>
+                  </View>
+                  <Text style={styles.donorAmount}>LKR {item.amount.toLocaleString()}</Text>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -461,16 +353,35 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   bannerImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 10 },
   pastBanner: { backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, marginBottom: 12, alignItems: 'center' },
-  pastBannerText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  headerCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 20, marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#fff', flex: 1 },
+  pastBannerText: { color: '#fff', fontWeight: 'bold' },
+  headerCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 20, marginBottom: 15 },
+  title: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 10 },
+  headerRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   categoryBadge: { backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  ratingBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  ratingText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
   detail: { fontSize: 15, color: '#555', marginBottom: 7 },
-  filledText: { color: '#e74c3c', fontWeight: 'bold' },
   description: { fontSize: 16, color: '#555', lineHeight: 24 },
+  fundraiserCard: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
+  fundraiserCardDone: { borderLeftColor: '#888', backgroundColor: '#fafafa' },
+  fundraiserHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  fundraiserName: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
+  completedBadge: { backgroundColor: '#888', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  completedText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  amountRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
+  collected: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  target: { fontSize: 13, color: '#888' },
+  progressBg: { height: 10, backgroundColor: '#e0e0e0', borderRadius: 5, overflow: 'hidden', marginBottom: 5 },
+  progressFill: { height: '100%', backgroundColor: '#27ae60', borderRadius: 5 },
+  pctText: { fontSize: 12, color: '#888', marginBottom: 12 },
+  fundraiserButtons: { flexDirection: 'row', gap: 8 },
+  viewDonorsBtn: { flex: 1, backgroundColor: '#f0f4f8', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#ddd' },
+  viewDonorsBtnText: { color: '#555', fontWeight: 'bold', fontSize: 13 },
+  donateBtn: { flex: 1, backgroundColor: '#27ae60', borderRadius: 8, padding: 10, alignItems: 'center' },
+  donateBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   buttonContainer: { marginBottom: 15 },
   applyButton: { backgroundColor: '#27ae60', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   disabledButton: { backgroundColor: '#aaa' },
@@ -479,16 +390,6 @@ const styles = StyleSheet.create({
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   deleteButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  fundraiserCard: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
-  fundraiserTitle: { fontSize: 16, fontWeight: 'bold', color: '#27ae60', marginBottom: 8 },
-  fundraiserAmounts: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
-  fundraiserCollected: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  fundraiserTarget: { fontSize: 14, color: '#888' },
-  progressBarBg: { height: 12, backgroundColor: '#e0e0e0', borderRadius: 6, overflow: 'hidden', marginBottom: 6 },
-  progressBarFill: { height: '100%', backgroundColor: '#27ae60', borderRadius: 6 },
-  fundraiserPct: { fontSize: 12, color: '#888', marginBottom: 12 },
-  donateNowButton: { backgroundColor: '#27ae60', borderRadius: 8, padding: 12, alignItems: 'center' },
-  donateNowButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   noFeedbackText: { color: '#999', fontSize: 14, textAlign: 'center', padding: 10 },
   feedbackItem: { borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingVertical: 12 },
   feedbackHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
@@ -501,13 +402,13 @@ const styles = StyleSheet.create({
   feedbackPhoto: { width: '100%', height: 200, borderRadius: 10, marginBottom: 8 },
   feedbackDate: { fontSize: 12, color: '#999' },
   commentActions: { flexDirection: 'row', gap: 6 },
-  editBtn: { backgroundColor: '#2e86de', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  editBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  deleteBtn: { backgroundColor: '#e74c3c', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  deleteBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  editBtn: { backgroundColor: '#2e86de', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  editBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  deleteBtn: { backgroundColor: '#e74c3c', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  deleteBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   addCommentButton: { marginTop: 15, backgroundColor: '#9b59b6', borderRadius: 10, padding: 12, alignItems: 'center' },
   addCommentButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  commentForm: { marginTop: 15, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 15, borderWidth: 1, borderColor: '#d7bfee' },
+  commentForm: { marginTop: 15, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 15 },
   formTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12 },
   formLabel: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
   starContainer: { flexDirection: 'row', gap: 6, marginBottom: 14 },
@@ -516,13 +417,28 @@ const styles = StyleSheet.create({
   photoPickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#9b59b6', borderStyle: 'dashed', borderRadius: 8, padding: 14, alignItems: 'center', marginBottom: 12 },
   photoPickerText: { color: '#9b59b6', fontWeight: 'bold', fontSize: 14 },
   formPhotoPreview: { width: '100%', height: 180, borderRadius: 8, marginBottom: 12 },
-  anonymousRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  anonNote: { color: '#888', fontSize: 12, marginBottom: 12 },
-  formButtons: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  anonymousRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  formButtons: { flexDirection: 'row', gap: 10 },
   submitCommentButton: { flex: 1, backgroundColor: '#9b59b6', borderRadius: 8, padding: 12, alignItems: 'center' },
   submitCommentText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   cancelCommentButton: { flex: 1, borderWidth: 1, borderColor: '#999', borderRadius: 8, padding: 12, alignItems: 'center' },
-  cancelCommentText: { color: '#555', fontWeight: 'bold', fontSize: 15 }
+  cancelCommentText: { color: '#555', fontWeight: 'bold', fontSize: 15 },
+  // Donors modal
+  donorsModal: { flex: 1, backgroundColor: '#f0f4f8' },
+  donorsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#27ae60', padding: 20, paddingTop: 15 },
+  donorsTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', flex: 1 },
+  donorsCloseBtn: { padding: 5 },
+  donorsCloseText: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  donorsSubtitle: { fontSize: 13, color: '#888', paddingHorizontal: 15, paddingTop: 10 },
+  noDonorsText: { textAlign: 'center', color: '#999', marginTop: 50, fontSize: 16 },
+  donorCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, elevation: 2, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  donorCardTop: { borderLeftWidth: 4, borderLeftColor: '#f39c12' },
+  donorRank: { width: 36, alignItems: 'center' },
+  donorRankText: { fontSize: 22 },
+  donorName: { fontSize: 15, fontWeight: 'bold', color: '#333' },
+  donorMessage: { fontSize: 13, color: '#888', fontStyle: 'italic', marginTop: 2 },
+  donorDate: { fontSize: 11, color: '#aaa', marginTop: 3 },
+  donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' }
 });
 
 export default OpportunityDetailScreen;

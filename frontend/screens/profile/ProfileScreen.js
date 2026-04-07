@@ -12,6 +12,8 @@ const ProfileScreen = ({ navigation }) => {
   const [phone, setPhone] = useState(user?.phone || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
@@ -106,24 +108,20 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.cardTitle}>Change Password</Text>
 
         <Text style={styles.label}>Current Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter current password"
-          placeholderTextColor="#aaa"
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput style={styles.passwordInput} placeholder="Enter current password" placeholderTextColor="#aaa" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry={!showCurrentPw} />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowCurrentPw(!showCurrentPw)}>
+            <Text style={styles.eyeText}>{showCurrentPw ? '🙈' : '👁️'}</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>New Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Minimum 6 characters"
-          placeholderTextColor="#aaa"
-          value={newPassword}
-          onChangeText={setNewPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput style={styles.passwordInput} placeholder="Minimum 6 characters" placeholderTextColor="#aaa" value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNewPw} />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowNewPw(!showNewPw)}>
+            <Text style={styles.eyeText}>{showNewPw ? '🙈' : '👁️'}</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.button} onPress={handleChangePassword} disabled={passwordLoading}>
           {passwordLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Change Password</Text>}
@@ -179,6 +177,10 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 15, marginBottom: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
   disabledInput: { backgroundColor: '#eee', color: '#999' },
   hint: { fontSize: 12, color: '#999', marginTop: -10, marginBottom: 15 },
+  passwordContainer: { backgroundColor: '#f8f9fa', borderRadius: 10, borderWidth: 1, borderColor: '#ddd', flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  passwordInput: { flex: 1, padding: 15, fontSize: 16, color: '#333' },
+  eyeButton: { padding: 15 },
+  eyeText: { fontSize: 18 },
   button: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   navButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderRadius: 10, backgroundColor: '#f8f9fa', marginBottom: 10 },

@@ -85,7 +85,7 @@ const HomeStack = () => (
     <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
     <Stack.Screen name="CreateOpportunity" component={CreateOpportunityScreen} options={{ title: 'Post Opportunity' }} />
     <Stack.Screen name="Apply" component={ApplyScreen} options={{ title: 'Apply' }} />
-    <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
     <Stack.Screen name="GenerateCertificate" component={GenerateCertificateScreen} options={{ title: 'Generate Certificate' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
@@ -106,7 +106,7 @@ const ProfileStack = () => (
     <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'My Profile' }} />
     <Stack.Screen name="MyApplications" component={MyApplicationsScreen} options={{ title: 'My Applications' }} />
     <Stack.Screen name="MyCreatedOpportunities" component={MyCreatedOpportunitiesScreen} options={{ title: 'My Created Opportunities' }} />
-    <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
     <Stack.Screen name="GenerateCertificate" component={GenerateCertificateScreen} options={{ title: 'Generate Certificate' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />

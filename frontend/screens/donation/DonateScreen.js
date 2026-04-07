@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
 const DonateScreen = ({ route, navigation }) => {
-  const { opportunityId, opportunityTitle } = route.params;
+  const { fundraiserId, fundraiserName, opportunityTitle } = route.params;
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [donorName, setDonorName] = useState('');
@@ -16,52 +16,37 @@ const DonateScreen = ({ route, navigation }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const pickReceipt = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7
-    });
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission required', 'Please allow photo access'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 });
     if (!result.canceled) setReceiptImage(result.assets[0]);
   };
 
   const handleSubmit = async () => {
     if (!amount || isNaN(amount) || Number(amount) < 1) {
-      Alert.alert('Error', 'Please enter a valid amount (minimum LKR 1)');
-      return;
+      Alert.alert('Invalid Amount', 'Please enter a valid amount (minimum LKR 1)'); return;
     }
-
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('opportunityId', opportunityId);
+      formData.append('fundraiserId', fundraiserId);
       formData.append('amount', amount);
       formData.append('message', message);
       formData.append('donorName', donorName);
       formData.append('donorPhone', donorPhone);
-
       if (receiptImage) {
         const filename = receiptImage.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        formData.append('receiptImage', { uri: receiptImage.uri, name: filename, type });
+        formData.append('receiptImage', { uri: receiptImage.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
       }
-
-      await api.post('/api/donations', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
+      await api.post('/api/donations', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       Alert.alert(
         'Donation Submitted!',
-        'Your donation is pending review by the opportunity creator. You can view and edit it in the Donations tab.',
+        'Your donation is pending review. You can view and edit it in the Donations tab until it\'s accepted.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit donation');
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit');
     } finally {
       setSubmitting(false);
     }
@@ -70,74 +55,38 @@ const DonateScreen = ({ route, navigation }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.headerCard}>
-        <Text style={styles.headerLabel}>Donating to</Text>
-        <Text style={styles.headerTitle}>{opportunityTitle}</Text>
+        <Text style={styles.headerLabel}>Fundraiser</Text>
+        <Text style={styles.headerFundraiser}>{fundraiserName}</Text>
+        <Text style={styles.headerOpp}>{opportunityTitle}</Text>
       </View>
 
       <View style={styles.form}>
-        <Text style={styles.sectionTitle}>Donation Details</Text>
+        <Text style={styles.sectionTitle}>Your Donation</Text>
 
         <Text style={styles.label}>Amount (LKR) *</Text>
-        <TextInput
-          style={styles.input}
-          placeholderTextColor="#999"
-          placeholder="Enter amount"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="numeric"
-        />
+        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Enter amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
 
         <Text style={styles.label}>Your Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholderTextColor="#999"
-          placeholder="Full name (optional)"
-          value={donorName}
-          onChangeText={setDonorName}
-        />
+        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Full name (optional)" value={donorName} onChangeText={setDonorName} />
 
         <Text style={styles.label}>Phone Number</Text>
-        <TextInput
-          style={styles.input}
-          placeholderTextColor="#999"
-          placeholder="Contact number (optional)"
-          value={donorPhone}
-          onChangeText={setDonorPhone}
-          keyboardType="phone-pad"
-        />
+        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Contact number (optional)" value={donorPhone} onChangeText={setDonorPhone} keyboardType="phone-pad" />
 
         <Text style={styles.label}>Message (optional)</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholderTextColor="#999"
-          placeholder="Leave a message..."
-          value={message}
-          onChangeText={setMessage}
-          multiline
-          numberOfLines={3}
-        />
+        <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Leave a message of support..." value={message} onChangeText={setMessage} multiline numberOfLines={3} />
 
         <Text style={styles.label}>Bank Receipt Photo</Text>
         <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
-          <Text style={styles.imagePickerText}>
-            {receiptImage ? '✅ Receipt Selected — tap to change' : '📷 Upload Bank Receipt Photo'}
-          </Text>
+          <Text style={styles.imagePickerText}>{receiptImage ? '✅ Receipt Selected — tap to change' : '📷 Upload Bank Receipt Photo'}</Text>
         </TouchableOpacity>
-        {receiptImage && (
-          <Image source={{ uri: receiptImage.uri }} style={styles.previewImage} resizeMode="cover" />
-        )}
+        {receiptImage && <Image source={{ uri: receiptImage.uri }} style={styles.previewImage} resizeMode="cover" />}
 
         <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            Your donation will be marked as pending until the organizer reviews your receipt. You can edit or delete it while it's pending.
-          </Text>
+          <Text style={styles.infoText}>Your donation will be marked as pending until the organizer reviews your receipt. You can edit or delete it while it's pending.</Text>
         </View>
 
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-          {submitting
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.submitButtonText}>Submit Donation</Text>
-          }
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Donation</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
@@ -150,9 +99,10 @@ const DonateScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8' },
-  headerCard: { backgroundColor: '#27ae60', padding: 20, marginBottom: 0 },
-  headerLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 4 },
-  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  headerCard: { backgroundColor: '#27ae60', padding: 20 },
+  headerLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 4 },
+  headerFundraiser: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 3 },
+  headerOpp: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
   form: { padding: 15 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },

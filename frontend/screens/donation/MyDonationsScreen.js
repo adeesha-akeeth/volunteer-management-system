@@ -137,9 +137,10 @@ const MyDonationsScreen = ({ navigation }) => {
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {item.opportunity?.title || 'Unknown Opportunity'}
-        </Text>
+        <View>
+          <Text style={styles.cardTitle} numberOfLines={1}>{item.fundraiser?.name || 'Donation'}</Text>
+          <Text style={styles.cardOpp} numberOfLines={1}>{item.opportunity?.title}</Text>
+        </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
           <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
         </View>
@@ -287,7 +288,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginHorizontal: 15, marginBottom: 10 },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginHorizontal: 15, marginBottom: 12, elevation: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  cardOpp: { fontSize: 12, color: '#888', marginTop: 2 },
   amount: { fontSize: 22, fontWeight: 'bold', color: '#27ae60', marginBottom: 6 },
   statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
   statusText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },

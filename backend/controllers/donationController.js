@@ -1,37 +1,36 @@
 const Donation = require('../models/Donation');
+const Fundraiser = require('../models/Fundraiser');
 const Opportunity = require('../models/Opportunity');
 
-// Create a donation (donor submits with receipt)
+// Create a donation linked to a fundraiser
 const createDonation = async (req, res) => {
   try {
-    const { opportunityId, amount, message, donorName, donorPhone } = req.body;
+    const { fundraiserId, amount, message, donorName, donorPhone } = req.body;
 
-    const opportunity = await Opportunity.findById(opportunityId);
-    if (!opportunity) {
-      return res.status(404).json({ message: 'Opportunity not found' });
-    }
-    if (!opportunity.fundraiser?.enabled) {
-      return res.status(400).json({ message: 'This opportunity does not have a fundraiser' });
+    const fundraiser = await Fundraiser.findById(fundraiserId).populate('opportunity');
+    if (!fundraiser) return res.status(404).json({ message: 'Fundraiser not found' });
+    if (fundraiser.status === 'completed') {
+      return res.status(400).json({ message: 'This fundraiser is already completed' });
     }
 
     const receiptImage = req.file ? req.file.path : '';
 
     const donation = await Donation.create({
       donor: req.user.id,
-      opportunity: opportunityId,
+      fundraiser: fundraiserId,
+      opportunity: fundraiser.opportunity._id,
       amount,
-      message,
+      message: message || '',
       donorName: donorName || '',
       donorPhone: donorPhone || '',
       receiptImage
     });
 
-    const populated = await Donation.findById(donation._id).populate('opportunity', 'title fundraiser');
+    const populated = await Donation.findById(donation._id)
+      .populate('fundraiser', 'name targetAmount status')
+      .populate('opportunity', 'title');
 
-    res.status(201).json({
-      message: 'Donation submitted successfully',
-      donation: populated
-    });
+    res.status(201).json({ message: 'Donation submitted successfully', donation: populated });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -41,35 +40,30 @@ const createDonation = async (req, res) => {
 const getMyDonations = async (req, res) => {
   try {
     const donations = await Donation.find({ donor: req.user.id })
-      .populate('opportunity', 'title fundraiser')
+      .populate('fundraiser', 'name targetAmount status')
+      .populate('opportunity', 'title')
       .sort({ createdAt: -1 });
 
     const confirmedTotal = donations
       .filter(d => d.status === 'confirmed')
       .reduce((sum, d) => sum + d.amount, 0);
 
-    res.status(200).json({
-      confirmedTotal,
-      totalDonations: donations.length,
-      donations
-    });
+    res.status(200).json({ confirmedTotal, totalDonations: donations.length, donations });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Get donations for a specific opportunity (creator only)
-const getDonationsByOpportunity = async (req, res) => {
+// Get donations for a specific fundraiser (creator only)
+const getDonationsByFundraiser = async (req, res) => {
   try {
-    const opportunity = await Opportunity.findById(req.params.opportunityId);
-    if (!opportunity) {
-      return res.status(404).json({ message: 'Opportunity not found' });
-    }
-    if (opportunity.createdBy.toString() !== req.user.id) {
+    const fundraiser = await Fundraiser.findById(req.params.fundraiserId).populate('opportunity');
+    if (!fundraiser) return res.status(404).json({ message: 'Fundraiser not found' });
+    if (fundraiser.opportunity.createdBy.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const donations = await Donation.find({ opportunity: req.params.opportunityId })
+    const donations = await Donation.find({ fundraiser: req.params.fundraiserId })
       .populate('donor', 'name email')
       .sort({ createdAt: -1 });
 
@@ -83,28 +77,44 @@ const getDonationsByOpportunity = async (req, res) => {
   }
 };
 
-// Update donation status (opportunity creator only)
+// Update donation status — opportunity creator only
+// Also auto-completes the fundraiser if target is reached
 const updateDonationStatus = async (req, res) => {
   try {
     const { status } = req.body;
-
     if (!['confirmed', 'rejected'].includes(status)) {
       return res.status(400).json({ message: 'Status must be confirmed or rejected' });
     }
 
-    const donation = await Donation.findById(req.params.id).populate('opportunity');
-    if (!donation) {
-      return res.status(404).json({ message: 'Donation not found' });
-    }
+    const donation = await Donation.findById(req.params.id)
+      .populate({ path: 'fundraiser', populate: { path: 'opportunity' } });
+    if (!donation) return res.status(404).json({ message: 'Donation not found' });
 
-    if (donation.opportunity.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Only the opportunity creator can accept donations' });
+    if (donation.fundraiser.opportunity.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only the opportunity creator can review donations' });
     }
 
     donation.status = status;
     await donation.save();
 
-    res.status(200).json({ message: `Donation ${status} successfully`, donation });
+    // Auto-complete fundraiser if confirmed total >= target
+    if (status === 'confirmed') {
+      const fundraiser = await Fundraiser.findById(donation.fundraiser._id);
+      if (fundraiser && fundraiser.status === 'active') {
+        const totalConfirmed = await Donation.aggregate([
+          { $match: { fundraiser: fundraiser._id, status: 'confirmed' } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const total = totalConfirmed[0]?.total || 0;
+        if (total >= fundraiser.targetAmount) {
+          fundraiser.status = 'completed';
+          fundraiser.completedAt = new Date();
+          await fundraiser.save();
+        }
+      }
+    }
+
+    res.status(200).json({ message: `Donation ${status}`, donation });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -114,15 +124,9 @@ const updateDonationStatus = async (req, res) => {
 const updateDonation = async (req, res) => {
   try {
     const donation = await Donation.findById(req.params.id);
-    if (!donation) {
-      return res.status(404).json({ message: 'Donation not found' });
-    }
-    if (donation.donor.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    if (donation.status !== 'pending') {
-      return res.status(400).json({ message: 'Can only update pending donations' });
-    }
+    if (!donation) return res.status(404).json({ message: 'Donation not found' });
+    if (donation.donor.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    if (donation.status !== 'pending') return res.status(400).json({ message: 'Can only edit pending donations' });
 
     const { amount, message, donorName, donorPhone } = req.body;
     if (amount) donation.amount = amount;
@@ -132,9 +136,11 @@ const updateDonation = async (req, res) => {
     if (req.file) donation.receiptImage = req.file.path;
 
     await donation.save();
-    const populated = await Donation.findById(donation._id).populate('opportunity', 'title fundraiser');
+    const populated = await Donation.findById(donation._id)
+      .populate('fundraiser', 'name targetAmount status')
+      .populate('opportunity', 'title');
 
-    res.status(200).json({ message: 'Donation updated successfully', donation: populated });
+    res.status(200).json({ message: 'Donation updated', donation: populated });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -144,18 +150,12 @@ const updateDonation = async (req, res) => {
 const deleteDonation = async (req, res) => {
   try {
     const donation = await Donation.findById(req.params.id);
-    if (!donation) {
-      return res.status(404).json({ message: 'Donation not found' });
-    }
-    if (donation.donor.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    if (donation.status !== 'pending') {
-      return res.status(400).json({ message: 'Cannot delete a confirmed or rejected donation' });
-    }
+    if (!donation) return res.status(404).json({ message: 'Donation not found' });
+    if (donation.donor.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    if (donation.status !== 'pending') return res.status(400).json({ message: 'Cannot delete a confirmed/rejected donation' });
 
     await Donation.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: 'Donation deleted successfully' });
+    res.status(200).json({ message: 'Donation deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -164,7 +164,7 @@ const deleteDonation = async (req, res) => {
 module.exports = {
   createDonation,
   getMyDonations,
-  getDonationsByOpportunity,
+  getDonationsByFundraiser,
   updateDonationStatus,
   updateDonation,
   deleteDonation

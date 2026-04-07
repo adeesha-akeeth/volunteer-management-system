@@ -1,14 +1,15 @@
 const Opportunity = require('../models/Opportunity');
+const Fundraiser = require('../models/Fundraiser');
 const Donation = require('../models/Donation');
+const Feedback = require('../models/Feedback');
 
-// Create a new opportunity (with optional banner image upload)
+// Create a new opportunity
 const createOpportunity = async (req, res) => {
   try {
     const {
       title, description, organization, location,
       startDate, endDate, spotsAvailable, category,
-      responsibleName, responsibleEmail, responsiblePhone,
-      fundraiserEnabled, fundraiserTarget
+      responsibleName, responsibleEmail, responsiblePhone
     } = req.body;
 
     const bannerImage = req.file ? req.file.path : '';
@@ -26,53 +27,78 @@ const createOpportunity = async (req, res) => {
       responsibleEmail: responsibleEmail || '',
       responsiblePhone: responsiblePhone || '',
       bannerImage,
-      fundraiser: {
-        enabled: fundraiserEnabled === 'true' || fundraiserEnabled === true,
-        targetAmount: fundraiserEnabled === 'true' || fundraiserEnabled === true
-          ? (Number(fundraiserTarget) || 0)
-          : 0
-      },
       createdBy: req.user.id
     });
 
-    res.status(201).json({
-      message: 'Opportunity created successfully',
-      opportunity
-    });
+    res.status(201).json({ message: 'Opportunity created successfully', opportunity });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Get all opportunities (with optional search by title or category)
+// Attach fundraiser info and ratings to a list of opportunity objects
+const attachExtras = async (opportunities) => {
+  const ids = opportunities.map(o => o._id || o.id);
+
+  // Star ratings
+  const ratings = await Feedback.aggregate([
+    { $match: { opportunity: { $in: ids } } },
+    { $group: { _id: '$opportunity', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+  ]);
+  const ratingsMap = {};
+  ratings.forEach(r => { ratingsMap[r._id.toString()] = { avg: parseFloat(r.avg.toFixed(1)), count: r.count }; });
+
+  // Fundraisers with confirmed totals
+  const fundraisers = await Fundraiser.find({ opportunity: { $in: ids } });
+  const fIds = fundraisers.map(f => f._id);
+  const totals = await Donation.aggregate([
+    { $match: { fundraiser: { $in: fIds }, status: 'confirmed' } },
+    { $group: { _id: '$fundraiser', collected: { $sum: '$amount' } } }
+  ]);
+  const totalsMap = {};
+  totals.forEach(t => { totalsMap[t._id.toString()] = t.collected; });
+
+  const fundraisersMap = {};
+  fundraisers.forEach(f => {
+    const oppId = f.opportunity.toString();
+    if (!fundraisersMap[oppId]) fundraisersMap[oppId] = [];
+    fundraisersMap[oppId].push({
+      _id: f._id,
+      name: f.name,
+      targetAmount: f.targetAmount,
+      status: f.status,
+      collectedAmount: totalsMap[f._id.toString()] || 0,
+      completedAt: f.completedAt,
+      createdAt: f.createdAt
+    });
+  });
+
+  return opportunities.map(opp => {
+    const obj = opp.toObject ? opp.toObject() : opp;
+    const oppId = obj._id.toString();
+    const ratingData = ratingsMap[oppId];
+    return {
+      ...obj,
+      averageRating: ratingData?.avg || null,
+      reviewCount: ratingData?.count || 0,
+      fundraisers: fundraisersMap[oppId] || []
+    };
+  });
+};
+
+// Get all opportunities
 const getOpportunities = async (req, res) => {
   try {
     const { search, category } = req.query;
-
     let filter = {};
     if (search) filter.title = { $regex: search, $options: 'i' };
     if (category) filter.category = category;
 
     const opportunities = await Opportunity.find(filter)
-      .populate('createdBy', 'name email')
+      .populate('createdBy', 'name email _id')
       .sort({ createdAt: -1 });
 
-    // Attach confirmed donation totals for opportunities with fundraisers
-    const totals = await Donation.aggregate([
-      { $match: { status: 'confirmed' } },
-      { $group: { _id: '$opportunity', collected: { $sum: '$amount' } } }
-    ]);
-    const totalsMap = {};
-    totals.forEach(t => { totalsMap[t._id.toString()] = t.collected; });
-
-    const result = opportunities.map(opp => {
-      const obj = opp.toObject();
-      if (obj.fundraiser?.enabled) {
-        obj.fundraiser.collectedAmount = totalsMap[opp._id.toString()] || 0;
-      }
-      return obj;
-    });
-
+    const result = await attachExtras(opportunities);
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -83,13 +109,12 @@ const getOpportunities = async (req, res) => {
 const getOpportunityById = async (req, res) => {
   try {
     const opportunity = await Opportunity.findById(req.params.id)
-      .populate('createdBy', 'name email');
+      .populate('createdBy', 'name email _id');
 
-    if (!opportunity) {
-      return res.status(404).json({ message: 'Opportunity not found' });
-    }
+    if (!opportunity) return res.status(404).json({ message: 'Opportunity not found' });
 
-    res.status(200).json(opportunity);
+    const [result] = await attachExtras([opportunity]);
+    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -99,20 +124,13 @@ const getOpportunityById = async (req, res) => {
 const updateOpportunity = async (req, res) => {
   try {
     const opportunity = await Opportunity.findById(req.params.id);
-
-    if (!opportunity) {
-      return res.status(404).json({ message: 'Opportunity not found' });
-    }
-
-    if (opportunity.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
+    if (!opportunity) return res.status(404).json({ message: 'Opportunity not found' });
+    if (opportunity.createdBy.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
 
     const {
       title, description, organization, location,
       startDate, endDate, spotsAvailable, category,
-      responsibleName, responsibleEmail, responsiblePhone,
-      fundraiserEnabled, fundraiserTarget
+      responsibleName, responsibleEmail, responsiblePhone
     } = req.body;
 
     const updatedData = {
@@ -120,28 +138,13 @@ const updateOpportunity = async (req, res) => {
       startDate, endDate, spotsAvailable, category,
       responsibleName, responsibleEmail, responsiblePhone
     };
-
-    if (req.file) {
-      updatedData.bannerImage = req.file.path;
-    }
-
-    updatedData.fundraiser = {
-      enabled: fundraiserEnabled === 'true' || fundraiserEnabled === true,
-      targetAmount: fundraiserEnabled === 'true' || fundraiserEnabled === true
-        ? (Number(fundraiserTarget) || 0)
-        : 0
-    };
+    if (req.file) updatedData.bannerImage = req.file.path;
 
     const updatedOpportunity = await Opportunity.findByIdAndUpdate(
-      req.params.id,
-      updatedData,
-      { new: true }
+      req.params.id, updatedData, { new: true }
     );
 
-    res.status(200).json({
-      message: 'Opportunity updated successfully',
-      opportunity: updatedOpportunity
-    });
+    res.status(200).json({ message: 'Opportunity updated successfully', opportunity: updatedOpportunity });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -150,60 +153,23 @@ const updateOpportunity = async (req, res) => {
 const getMyOpportunities = async (req, res) => {
   try {
     const opportunities = await Opportunity.find({ createdBy: req.user.id })
-      .populate('createdBy', 'name email')
+      .populate('createdBy', 'name email _id')
       .sort({ createdAt: -1 });
-    res.status(200).json(opportunities);
+    const result = await attachExtras(opportunities);
+    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Delete an opportunity (creator only)
 const deleteOpportunity = async (req, res) => {
   try {
     const opportunity = await Opportunity.findById(req.params.id);
-
-    if (!opportunity) {
-      return res.status(404).json({ message: 'Opportunity not found' });
-    }
-
-    if (opportunity.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
+    if (!opportunity) return res.status(404).json({ message: 'Opportunity not found' });
+    if (opportunity.createdBy.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
 
     await Opportunity.findByIdAndDelete(req.params.id);
-
     res.status(200).json({ message: 'Opportunity deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get opportunities that have a fundraiser enabled, with confirmed donation totals
-const getOpportunitiesWithFundraiser = async (req, res) => {
-  try {
-    const opportunities = await Opportunity.find({ 'fundraiser.enabled': true })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-
-    // Compute confirmed totals for each opportunity
-    const totals = await Donation.aggregate([
-      { $match: { status: 'confirmed' } },
-      { $group: { _id: '$opportunity', collected: { $sum: '$amount' } } }
-    ]);
-
-    const totalsMap = {};
-    totals.forEach(t => { totalsMap[t._id.toString()] = t.collected; });
-
-    const result = opportunities.map(opp => ({
-      ...opp.toObject(),
-      fundraiser: {
-        ...opp.fundraiser.toObject ? opp.fundraiser.toObject() : opp.fundraiser,
-        collectedAmount: totalsMap[opp._id.toString()] || 0
-      }
-    }));
-
-    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -215,6 +181,5 @@ module.exports = {
   getOpportunityById,
   getMyOpportunities,
   updateOpportunity,
-  deleteOpportunity,
-  getOpportunitiesWithFundraiser
+  deleteOpportunity
 };

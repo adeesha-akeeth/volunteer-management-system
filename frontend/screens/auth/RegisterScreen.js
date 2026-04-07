@@ -11,6 +11,7 @@ const RegisterScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { register } = useContext(AuthContext);
 
@@ -68,14 +69,19 @@ const RegisterScreen = ({ navigation }) => {
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Minimum 6 characters"
-          placeholderTextColor="#aaa"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Minimum 6 characters"
+            placeholderTextColor="#aaa"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
+            <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
@@ -96,6 +102,10 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 30 },
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 5 },
   input: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
+  passwordContainer: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#ddd', flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  passwordInput: { flex: 1, padding: 15, fontSize: 16, color: '#333' },
+  eyeButton: { padding: 15 },
+  eyeText: { fontSize: 18 },
   button: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 15, marginTop: 10 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   link: { color: '#2e86de', textAlign: 'center', fontSize: 14 }

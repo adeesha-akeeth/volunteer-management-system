@@ -1,183 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
   ActivityIndicator, Alert, TouchableOpacity,
-  RefreshControl, Image, TextInput, Modal
+  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
 
-const FavouritesScreen = ({ navigation }) => {
-  const [lists, setLists] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedList, setSelectedList] = useState(null);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [photo, setPhoto] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const fetchLists = async () => {
-    try {
-      const response = await api.get('/api/favourites');
-      setLists(response.data);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load favourites');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => { fetchLists(); }, []);
-
-  const onRefresh = () => { setRefreshing(true); fetchLists(); };
-
-  const pickPhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.7
-    });
-    if (!result.canceled) setPhoto(result.assets[0]);
-  };
-
-  const handleCreate = async () => {
-    if (!name) { Alert.alert('Error', 'Please enter a list name'); return; }
-    setSubmitting(true);
-    try {
-      if (photo) {
-        const formData = new FormData();
-        formData.append('name', name);
-        formData.append('description', description);
-        const filename = photo.uri.split('/').pop();
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        formData.append('photo', { uri: photo.uri, name: filename, type });
-        await api.post('/api/favourites', formData);
-      } else {
-        await api.post('/api/favourites', { name, description });
-      }
-      setShowCreateModal(false);
-      setName('');
-      setDescription('');
-      setPhoto(null);
-      fetchLists();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create list');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleEdit = async () => {
-    if (!name) { Alert.alert('Error', 'Please enter a list name'); return; }
-    setSubmitting(true);
-    try {
-      if (photo) {
-        const formData = new FormData();
-        formData.append('name', name);
-        formData.append('description', description);
-        const filename = photo.uri.split('/').pop();
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        formData.append('photo', { uri: photo.uri, name: filename, type });
-        await api.put(`/api/favourites/${selectedList._id}`, formData);
-      } else {
-        await api.put(`/api/favourites/${selectedList._id}`, { name, description });
-      }
-      setShowEditModal(false);
-      setName('');
-      setDescription('');
-      setPhoto(null);
-      setSelectedList(null);
-      fetchLists();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update list');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleRemovePhoto = async () => {
-    try {
-      await api.put(`/api/favourites/${selectedList._id}`, {
-        name: selectedList.name,
-        description: selectedList.description,
-        removePhoto: 'true'
-      });
-      fetchLists();
-      setShowEditModal(false);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to remove photo');
-    }
-  };
-
-  const handleDelete = (listId) => {
-    Alert.alert('Delete List', 'Are you sure? This will delete the list and all its saved opportunities.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/favourites/${listId}`);
-            fetchLists();
-          } catch (error) {
-            Alert.alert('Error', 'Failed to delete list');
-          }
-        }
-      }
-    ]);
-  };
-
-  const openEditModal = (list) => {
-    setSelectedList(list);
-    setName(list.name);
-    setDescription(list.description);
-    setPhoto(null);
-    setShowEditModal(true);
-  };
-
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('FavouriteDetail', { list: item })}
-    >
-      {item.photo ? (
-        <Image
-          source={{ uri: `https://volunteer-management-system-qux8.onrender.com/${item.photo}` }}
-          style={styles.cardImage}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={styles.cardImagePlaceholder}>
-          <Text style={styles.cardImagePlaceholderText}>❤️</Text>
-        </View>
-      )}
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        {item.description ? <Text style={styles.cardDescription}>{item.description}</Text> : null}
-        <Text style={styles.cardCount}>{item.opportunities?.length || 0} opportunities saved</Text>
-      </View>
-      <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(item)}>
-          <Text style={styles.editButtonText}>✏️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item._id)}>
-          <Text style={styles.deleteButtonText}>🗑️</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const ModalContent = ({ onSubmit, title, buttonText }) => (
-    <View style={styles.modalContainer}>
+// ListFormModal is defined OUTSIDE the screen component to prevent the
+// 1-letter-at-a-time re-mount bug caused by inner component redefinition.
+const ListFormModal = ({ visible, title, name, description, onChangeName, onChangeDescription, onSubmit, onCancel, submitting }) => (
+  <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+    <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onCancel} />
       <View style={styles.modalContent}>
+        <View style={styles.modalHandle} />
         <Text style={styles.modalTitle}>{title}</Text>
 
         <Text style={styles.label}>List Name *</Text>
@@ -186,49 +22,137 @@ const FavouritesScreen = ({ navigation }) => {
           placeholder="e.g. Environmental Causes"
           placeholderTextColor="#aaa"
           value={name}
-          onChangeText={setName}
+          onChangeText={onChangeName}
+          autoFocus
         />
 
         <Text style={styles.label}>Description (optional)</Text>
         <TextInput
           style={styles.textArea}
-          placeholder="What kind of opportunities will you save here?"
+          placeholder="What kind of opportunities?"
           placeholderTextColor="#aaa"
           value={description}
-          onChangeText={setDescription}
+          onChangeText={onChangeDescription}
           multiline
           numberOfLines={3}
         />
 
-        <Text style={styles.label}>Cover Photo (optional)</Text>
-        <TouchableOpacity style={styles.imagePickerButton} onPress={pickPhoto}>
-          <Text style={styles.imagePickerText}>
-            {photo ? '✅ Photo Selected' : '📷 Add Cover Photo'}
-          </Text>
-        </TouchableOpacity>
-
-        {selectedList?.photo && !photo && (
-          <TouchableOpacity style={styles.removePhotoButton} onPress={handleRemovePhoto}>
-            <Text style={styles.removePhotoText}>🗑️ Remove Current Photo</Text>
-          </TouchableOpacity>
-        )}
-
         <TouchableOpacity style={styles.submitButton} onPress={onSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>{buttonText}</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>{title}</Text>}
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.cancelButton} onPress={() => {
-          setShowCreateModal(false);
-          setShowEditModal(false);
-          setName('');
-          setDescription('');
-          setPhoto(null);
-          setSelectedList(null);
-        }}>
+        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
+  </Modal>
+);
+
+const FavouritesScreen = ({ navigation }) => {
+  const [lists, setLists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createDesc, setCreateDesc] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingList, setEditingList] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  const fetchLists = async () => {
+    try {
+      const res = await api.get('/api/favourites');
+      setLists(res.data);
+    } catch {
+      Alert.alert('Error', 'Failed to load favourites');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { fetchLists(); }, []);
+  const onRefresh = () => { setRefreshing(true); fetchLists(); };
+
+  const handleCreate = async () => {
+    if (!createName.trim()) { Alert.alert('Required', 'Please enter a list name'); return; }
+    setCreating(true);
+    try {
+      await api.post('/api/favourites', { name: createName.trim(), description: createDesc.trim() });
+      setShowCreate(false);
+      setCreateName(''); setCreateDesc('');
+      fetchLists();
+    } catch {
+      Alert.alert('Error', 'Failed to create list');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openEdit = (list) => {
+    setEditingList(list);
+    setEditName(list.name);
+    setEditDesc(list.description || '');
+    setShowEdit(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editName.trim()) { Alert.alert('Required', 'Please enter a list name'); return; }
+    setEditing(true);
+    try {
+      await api.put(`/api/favourites/${editingList._id}`, { name: editName.trim(), description: editDesc.trim() });
+      setShowEdit(false);
+      setEditingList(null);
+      fetchLists();
+    } catch {
+      Alert.alert('Error', 'Failed to update list');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleDelete = (list) => {
+    Alert.alert(
+      'Delete List',
+      `Delete "${list.name}"? All saved opportunities in this list will be removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await api.delete(`/api/favourites/${list._id}`);
+            fetchLists();
+          } catch {
+            Alert.alert('Error', 'Failed to delete list');
+          }
+        }}
+      ]
+    );
+  };
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('FavouriteDetail', { list: item })} activeOpacity={0.8}>
+      <View style={styles.cardIcon}>
+        <Text style={styles.cardIconText}>❤️</Text>
+      </View>
+      <View style={styles.cardContent}>
+        <Text style={styles.cardTitle}>{item.name}</Text>
+        {item.description ? <Text style={styles.cardDescription} numberOfLines={1}>{item.description}</Text> : null}
+        <Text style={styles.cardCount}>{item.opportunities?.length || 0} saved</Text>
+      </View>
+      <View style={styles.cardActions}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
+          <Text style={styles.actionBtnText}>✏️</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionBtn, styles.deleteActionBtn]} onPress={() => handleDelete(item)}>
+          <Text style={styles.actionBtnText}>🗑️</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#e74c3c" /></View>;
@@ -237,7 +161,7 @@ const FavouritesScreen = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.heading}>My Favourites</Text>
-        <TouchableOpacity style={styles.createButton} onPress={() => setShowCreateModal(true)}>
+        <TouchableOpacity style={styles.createButton} onPress={() => setShowCreate(true)}>
           <Text style={styles.createButtonText}>+ New List</Text>
         </TouchableOpacity>
       </View>
@@ -251,18 +175,37 @@ const FavouritesScreen = ({ navigation }) => {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>❤️</Text>
             <Text style={styles.emptyText}>No favourites lists yet</Text>
-            <Text style={styles.emptySubText}>Create a list to start saving opportunities!</Text>
+            <Text style={styles.emptySubText}>Create a list to save opportunities you love!</Text>
+            <TouchableOpacity style={styles.emptyCreateBtn} onPress={() => setShowCreate(true)}>
+              <Text style={styles.emptyCreateBtnText}>Create My First List</Text>
+            </TouchableOpacity>
           </View>
         }
       />
 
-      <Modal visible={showCreateModal} transparent animationType="slide">
-        <ModalContent onSubmit={handleCreate} title="Create New List" buttonText="Create List" />
-      </Modal>
+      <ListFormModal
+        visible={showCreate}
+        title="Create New List"
+        name={createName}
+        description={createDesc}
+        onChangeName={setCreateName}
+        onChangeDescription={setCreateDesc}
+        onSubmit={handleCreate}
+        onCancel={() => { setShowCreate(false); setCreateName(''); setCreateDesc(''); }}
+        submitting={creating}
+      />
 
-      <Modal visible={showEditModal} transparent animationType="slide">
-        <ModalContent onSubmit={handleEdit} title="Edit List" buttonText="Save Changes" />
-      </Modal>
+      <ListFormModal
+        visible={showEdit}
+        title="Edit List"
+        name={editName}
+        description={editDesc}
+        onChangeName={setEditName}
+        onChangeDescription={setEditDesc}
+        onSubmit={handleEdit}
+        onCancel={() => { setShowEdit(false); setEditingList(null); }}
+        submitting={editing}
+      />
     </View>
   );
 };
@@ -274,37 +217,35 @@ const styles = StyleSheet.create({
   heading: { fontSize: 24, fontWeight: 'bold', color: '#333' },
   createButton: { backgroundColor: '#e74c3c', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 8 },
   createButtonText: { color: '#fff', fontWeight: 'bold' },
-  card: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 12, elevation: 3, overflow: 'hidden' },
-  cardImage: { width: '100%', height: 120, },
-  cardImagePlaceholder: { width: '100%', height: 80, backgroundColor: '#ffe0e0', justifyContent: 'center', alignItems: 'center' },
-  cardImagePlaceholderText: { fontSize: 30 },
-  cardContent: { padding: 12 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 4 },
-  cardDescription: { fontSize: 14, color: '#666', marginBottom: 4 },
+  card: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 10, elevation: 3, flexDirection: 'row', alignItems: 'center', padding: 14 },
+  cardIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#ffe0e0', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  cardIconText: { fontSize: 22 },
+  cardContent: { flex: 1 },
+  cardTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 3 },
+  cardDescription: { fontSize: 13, color: '#666', marginBottom: 3 },
   cardCount: { fontSize: 12, color: '#e74c3c', fontWeight: 'bold' },
-  cardActions: { flexDirection: 'row', justifyContent: 'flex-end', padding: 8, gap: 8 },
-  editButton: { padding: 8, backgroundColor: '#f0f4f8', borderRadius: 8 },
-  editButtonText: { fontSize: 18 },
-  deleteButton: { padding: 8, backgroundColor: '#ffe0e0', borderRadius: 8 },
-  deleteButtonText: { fontSize: 18 },
+  cardActions: { flexDirection: 'row', gap: 6, marginLeft: 8 },
+  actionBtn: { width: 36, height: 36, backgroundColor: '#f8f9fa', borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  deleteActionBtn: { backgroundColor: '#ffe0e0' },
+  actionBtnText: { fontSize: 16 },
   emptyContainer: { alignItems: 'center', marginTop: 80 },
   emptyIcon: { fontSize: 60, marginBottom: 15 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  emptySubText: { fontSize: 14, color: '#999', textAlign: 'center' },
-  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
+  emptySubText: { fontSize: 14, color: '#999', textAlign: 'center', marginBottom: 20 },
+  emptyCreateBtn: { backgroundColor: '#e74c3c', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 },
+  emptyCreateBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  // Modal
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 5 },
-  input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
-  textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 80, textAlignVertical: 'top', color: '#333' },
-  imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#e74c3c', borderStyle: 'dashed', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
-  imagePickerText: { color: '#e74c3c', fontWeight: 'bold' },
-  removePhotoButton: { padding: 10, alignItems: 'center', marginBottom: 10 },
-  removePhotoText: { color: '#e74c3c', fontSize: 14 },
-  submitButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
+  input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
+  textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 80, textAlignVertical: 'top', color: '#333' },
+  submitButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10 },
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  cancelButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 15, alignItems: 'center' },
-  cancelButtonText: { color: '#999', fontWeight: 'bold' }
+  cancelButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, alignItems: 'center' },
+  cancelButtonText: { color: '#999', fontWeight: 'bold', fontSize: 15 }
 });
 
 export default FavouritesScreen;
