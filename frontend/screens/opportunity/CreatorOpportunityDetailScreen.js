@@ -15,6 +15,7 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
   const [applications, setApplications] = useState([]);
   const [fundraisers, setFundraisers] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('applications');
   const [appFilter, setAppFilter] = useState('all');
@@ -65,16 +66,18 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
 
   const fetchData = async () => {
     try {
-      const [oppRes, appRes, frRes, grpRes] = await Promise.all([
+      const [oppRes, appRes, frRes, grpRes, contribRes] = await Promise.all([
         api.get(`/api/opportunities/${opportunityId}`),
         api.get(`/api/applications/opportunity/${opportunityId}`),
         api.get(`/api/fundraisers/opportunity/${opportunityId}`),
-        api.get(`/api/application-groups/opportunity/${opportunityId}`)
+        api.get(`/api/application-groups/opportunity/${opportunityId}`),
+        api.get(`/api/contributions/opportunity/${opportunityId}`)
       ]);
       setOpportunity(oppRes.data);
       setApplications(appRes.data);
       setFundraisers(frRes.data);
       setGroups(grpRes.data);
+      setContributions(contribRes.data || []);
       if (frRes.data.length > 0 && !selectedFundraiser) {
         loadFundraiserDonations(frRes.data[0]._id);
         setSelectedFundraiser(frRes.data[0]);
@@ -297,6 +300,13 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
     } catch { Alert.alert('Error', 'Failed'); }
   };
 
+  const handleVerifyContribution = async (contribId, status) => {
+    try {
+      await api.put(`/api/contributions/${contribId}/status`, { status });
+      fetchData();
+    } catch { Alert.alert('Error', 'Failed to update contribution'); }
+  };
+
   // Compute grouped app IDs
   const groupedAppIds = new Set(groups.flatMap(g => g.applications.map(a => a._id || a)));
   const ungroupedApps = applications.filter(a => !groupedAppIds.has(a._id));
@@ -355,6 +365,43 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Contribution requests for approved apps */}
+      {app.status === 'approved' && (() => {
+        const appContribs = contributions.filter(c =>
+          c.volunteer?._id === app.volunteer?._id || c.volunteer === app.volunteer?._id
+        );
+        if (appContribs.length === 0) return (
+          <Text style={styles.noContribText}>No contribution submissions yet</Text>
+        );
+        return (
+          <View style={styles.contribSection}>
+            <Text style={styles.contribSectionTitle}>📋 Contribution Requests</Text>
+            {appContribs.map(c => (
+              <View key={c._id} style={[styles.contribCard, { borderLeftColor: c.status === 'verified' ? '#27ae60' : c.status === 'rejected' ? '#e74c3c' : '#f39c12' }]}>
+                <View style={styles.contribRow}>
+                  <Text style={styles.contribHours}>⏱ {c.hours} hr{c.hours !== 1 ? 's' : ''}</Text>
+                  <View style={[styles.contribBadge, { backgroundColor: c.status === 'verified' ? '#27ae60' : c.status === 'rejected' ? '#e74c3c' : '#f39c12' }]}>
+                    <Text style={styles.contribBadgeText}>{c.status}</Text>
+                  </View>
+                </View>
+                {c.description ? <Text style={styles.contribDesc}>{c.description}</Text> : null}
+                <Text style={styles.contribDate}>{new Date(c.createdAt).toDateString()}</Text>
+                {c.status === 'pending' && (
+                  <View style={styles.contribActions}>
+                    <TouchableOpacity style={styles.verifyBtn} onPress={() => handleVerifyContribution(c._id, 'verified')}>
+                      <Text style={styles.verifyBtnText}>✅ Verify</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.rejectContribBtn} onPress={() => handleVerifyContribution(c._id, 'rejected')}>
+                      <Text style={styles.rejectContribBtnText}>❌ Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        );
+      })()}
     </View>
   );
 
@@ -855,6 +902,22 @@ const styles = StyleSheet.create({
   donorName: { fontSize: 15, fontWeight: 'bold', color: '#333' },
   donorMessage: { fontSize: 13, color: '#888', fontStyle: 'italic', marginTop: 2 },
   donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' },
+  // Contributions
+  noContribText: { color: '#bbb', fontSize: 12, marginTop: 6, fontStyle: 'italic' },
+  contribSection: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 10 },
+  contribSectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#555', marginBottom: 8 },
+  contribCard: { backgroundColor: '#f8f9fa', borderRadius: 8, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#f39c12' },
+  contribRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  contribHours: { fontSize: 14, fontWeight: 'bold', color: '#333' },
+  contribBadge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  contribBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  contribDesc: { fontSize: 13, color: '#555', marginBottom: 4 },
+  contribDate: { fontSize: 11, color: '#aaa', marginBottom: 6 },
+  contribActions: { flexDirection: 'row', gap: 8 },
+  verifyBtn: { flex: 1, backgroundColor: '#27ae60', borderRadius: 7, padding: 8, alignItems: 'center' },
+  verifyBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  rejectContribBtn: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 7, padding: 8, alignItems: 'center' },
+  rejectContribBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   // Assign modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   assignModal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },

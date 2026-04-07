@@ -1,0 +1,18 @@
+const express = require('express');
+const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+const {
+  submitContribution,
+  getMyContributions,
+  getMyApprovedOpportunities,
+  getContributionsForOpportunity,
+  updateContributionStatus
+} = require('../controllers/contributionController');
+
+router.post('/', protect, submitContribution);
+router.get('/my', protect, getMyContributions);
+router.get('/my-opportunities', protect, getMyApprovedOpportunities);
+router.get('/opportunity/:opportunityId', protect, getContributionsForOpportunity);
+router.put('/:id/status', protect, updateContributionStatus);
+
+module.exports = router;

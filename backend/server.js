@@ -69,6 +69,12 @@ app.use('/api/comments', commentRoutes);
 const applicationGroupRoutes = require('./routes/applicationGroupRoutes');
 app.use('/api/application-groups', applicationGroupRoutes);
 
+const contributionRoutes = require('./routes/contributionRoutes');
+app.use('/api/contributions', contributionRoutes);
+
+const pointsRoutes = require('./routes/pointsRoutes');
+app.use('/api/points', pointsRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
