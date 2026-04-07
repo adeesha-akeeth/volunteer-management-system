@@ -19,11 +19,11 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [isPast, setIsPast] = useState(false);
 
   // Donors modal
-  const [donorsModal, setDonorsModal] = useState(null); // fundraiser obj
+  const [donorsModal, setDonorsModal] = useState(null);
   const [donors, setDonors] = useState([]);
   const [donorsLoading, setDonorsLoading] = useState(false);
 
-  // Comment form state
+  // Review form
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formRating, setFormRating] = useState(0);
@@ -32,15 +32,26 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [formAnonymous, setFormAnonymous] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
 
+  // Comments
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null); // { id, authorName }
+  const [replyText, setReplyText] = useState('');
+  const [replySubmitting, setReplySubmitting] = useState(false);
+  const [expandedReplies, setExpandedReplies] = useState({});
+
   const fetchData = async () => {
     try {
-      const [oppRes, feedbackRes] = await Promise.all([
+      const [oppRes, feedbackRes, commentsRes] = await Promise.all([
         api.get(`/api/opportunities/${opportunityId}`),
-        api.get(`/api/feedback/opportunity/${opportunityId}`)
+        api.get(`/api/feedback/opportunity/${opportunityId}`),
+        api.get(`/api/comments/opportunity/${opportunityId}`)
       ]);
       const opp = oppRes.data;
       setOpportunity(opp);
       setFeedback(feedbackRes.data.feedback || []);
+      setComments(commentsRes.data || []);
       setIsCreator(opp.createdBy?._id === user?.id);
       if (opp.endDate && new Date() > new Date(opp.endDate)) setIsPast(true);
     } catch {
@@ -51,6 +62,86 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleVote = async (vote) => {
+    try {
+      const res = await api.post('/api/votes', { targetId: opportunityId, targetType: 'opportunity', vote });
+      setOpportunity(prev => ({ ...prev, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote }));
+    } catch {
+      Alert.alert('Error', 'Failed to vote');
+    }
+  };
+
+  const handleCommentVote = async (comment, vote) => {
+    try {
+      const res = await api.post('/api/votes', { targetId: comment._id, targetType: 'comment', vote });
+      setComments(prev => prev.map(c => {
+        if (c._id === comment._id) return { ...c, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote };
+        return {
+          ...c,
+          replies: c.replies.map(r => r._id === comment._id
+            ? { ...r, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote }
+            : r
+          )
+        };
+      }));
+    } catch {
+      Alert.alert('Error', 'Failed to vote');
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return;
+    setCommentSubmitting(true);
+    try {
+      const res = await api.post('/api/comments', { opportunityId, text: commentText });
+      setComments(prev => [...prev, res.data]);
+      setCommentText('');
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to post comment');
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  const handleAddReply = async () => {
+    if (!replyText.trim() || !replyingTo) return;
+    setReplySubmitting(true);
+    try {
+      const res = await api.post('/api/comments', { opportunityId, text: replyText, parentCommentId: replyingTo.id });
+      setComments(prev => prev.map(c =>
+        c._id === replyingTo.id ? { ...c, replies: [...c.replies, res.data] } : c
+      ));
+      setReplyText('');
+      setReplyingTo(null);
+      setExpandedReplies(prev => ({ ...prev, [replyingTo.id]: true }));
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to post reply');
+    } finally {
+      setReplySubmitting(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId, parentId) => {
+    Alert.alert('Delete Comment', 'Delete this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete(`/api/comments/${commentId}`);
+            if (parentId) {
+              setComments(prev => prev.map(c =>
+                c._id === parentId ? { ...c, replies: c.replies.filter(r => r._id !== commentId) } : c
+              ));
+            } else {
+              setComments(prev => prev.filter(c => c._id !== commentId));
+            }
+          } catch { Alert.alert('Error', 'Failed to delete'); }
+        }
+      }
+    ]);
+  };
 
   const openDonors = async (fundraiser) => {
     setDonorsModal(fundraiser);
@@ -94,7 +185,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const openEditForm = (item) => { setEditingId(item._id); setFormRating(item.rating); setFormComment(item.comment || ''); setFormPhoto(null); setFormAnonymous(item.anonymous || false); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditingId(null); setFormRating(0); setFormComment(''); setFormPhoto(null); setFormAnonymous(false); };
 
-  const handleSubmitComment = async () => {
+  const handleSubmitReview = async () => {
     if (!formRating) { Alert.alert('Rating required', 'Please select a star rating'); return; }
     setFormLoading(true);
     try {
@@ -126,8 +217,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleDeleteComment = (feedbackId) => {
-    Alert.alert('Delete Comment', 'Remove your review?', [
+  const handleDeleteReview = (feedbackId) => {
+    Alert.alert('Delete Review', 'Remove your review?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => { try { await api.delete(`/api/feedback/${feedbackId}`); fetchData(); } catch { Alert.alert('Error', 'Failed'); } } }
     ]);
@@ -141,12 +232,92 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     return 'Date not set';
   };
 
+  const CommentItem = ({ item, parentId = null }) => {
+    const isOwn = item.author?._id === user?.id || item.author?.id === user?.id;
+    const hasReplies = item.replies?.length > 0;
+    const repliesExpanded = expandedReplies[item._id];
+
+    return (
+      <View style={[styles.commentItem, parentId && styles.commentItemReply]}>
+        <View style={styles.commentHeader}>
+          <View style={styles.commentAvatar}>
+            <Text style={styles.commentAvatarText}>{item.author?.name?.charAt(0).toUpperCase() || '?'}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.commentAuthor}>{item.author?.name || 'Unknown'}</Text>
+            <Text style={styles.commentDate}>{new Date(item.createdAt).toDateString()}</Text>
+          </View>
+          {isOwn && (
+            <TouchableOpacity onPress={() => handleDeleteComment(item._id, parentId)} style={styles.commentDeleteBtn}>
+              <Text style={styles.commentDeleteText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <Text style={styles.commentText}>{item.text}</Text>
+
+        <View style={styles.commentFooter}>
+          {/* Vote buttons */}
+          <TouchableOpacity
+            style={[styles.commentVoteBtn, item.userVote === 'like' && styles.commentVoteBtnLikeActive]}
+            onPress={() => handleCommentVote(item, 'like')}
+          >
+            <Text style={styles.commentVoteBtnText}>👍 {item.likes || 0}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.commentVoteBtn, item.userVote === 'dislike' && styles.commentVoteBtnDislikeActive]}
+            onPress={() => handleCommentVote(item, 'dislike')}
+          >
+            <Text style={styles.commentVoteBtnText}>👎 {item.dislikes || 0}</Text>
+          </TouchableOpacity>
+          {/* Reply button — only for top-level */}
+          {!parentId && (
+            <TouchableOpacity
+              style={styles.replyBtn}
+              onPress={() => setReplyingTo(replyingTo?.id === item._id ? null : { id: item._id, authorName: item.author?.name })}
+            >
+              <Text style={styles.replyBtnText}>↩ Reply</Text>
+            </TouchableOpacity>
+          )}
+          {hasReplies && !parentId && (
+            <TouchableOpacity style={styles.showRepliesBtn} onPress={() => setExpandedReplies(prev => ({ ...prev, [item._id]: !prev[item._id] }))}>
+              <Text style={styles.showRepliesBtnText}>{repliesExpanded ? 'Hide' : `${item.replies.length} repl${item.replies.length === 1 ? 'y' : 'ies'}`}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Reply input box */}
+        {!parentId && replyingTo?.id === item._id && (
+          <View style={styles.replyInputRow}>
+            <TextInput
+              style={styles.replyInput}
+              placeholder={`Reply to ${replyingTo.authorName}...`}
+              placeholderTextColor="#aaa"
+              value={replyText}
+              onChangeText={setReplyText}
+              multiline
+            />
+            <TouchableOpacity style={styles.replySubmitBtn} onPress={handleAddReply} disabled={replySubmitting}>
+              {replySubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.replySubmitText}>Send</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Replies */}
+        {!parentId && repliesExpanded && item.replies.map(reply => (
+          <CommentItem key={reply._id} item={reply} parentId={item._id} />
+        ))}
+      </View>
+    );
+  };
+
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
   if (!opportunity) return <View style={styles.centered}><Text>Opportunity not found</Text></View>;
 
+  const likeActive = opportunity.userVote === 'like';
+  const dislikeActive = opportunity.userVote === 'dislike';
+
   return (
     <ScrollView style={styles.container}>
-      {/* Banner */}
       {opportunity.bannerImage ? (
         <Image source={{ uri: `${BASE_URL}/${opportunity.bannerImage}` }} style={styles.bannerImage} resizeMode="cover" />
       ) : null}
@@ -162,6 +333,15 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               <Text style={styles.ratingText}>⭐ {opportunity.averageRating} ({opportunity.reviewCount})</Text>
             </View>
           )}
+        </View>
+        {/* Like/Dislike row */}
+        <View style={styles.voteRow}>
+          <TouchableOpacity style={[styles.voteBtn, likeActive && styles.voteBtnLikeActive]} onPress={() => handleVote('like')}>
+            <Text style={styles.voteBtnText}>👍 {opportunity.likes || 0} Likes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.voteBtn, dislikeActive && styles.voteBtnDislikeActive]} onPress={() => handleVote('dislike')}>
+            <Text style={styles.voteBtnText}>👎 {opportunity.dislikes || 0} Dislikes</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -196,8 +376,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               <Text style={styles.target}> of LKR {fr.targetAmount.toLocaleString()} goal</Text>
             </View>
             <View style={styles.progressBg}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
-            <Text style={styles.pctText}>{pct}% funded · {fr.donorCount} donor{fr.donorCount !== 1 ? 's' : ''}</Text>
-
+            <Text style={styles.pctText}>{pct}% funded · {fr.donorCount || 0} donor{(fr.donorCount || 0) !== 1 ? 's' : ''}</Text>
             <View style={styles.fundraiserButtons}>
               <TouchableOpacity style={styles.viewDonorsBtn} onPress={() => openDonors(fr)}>
                 <Text style={styles.viewDonorsBtnText}>View Donors</Text>
@@ -259,7 +438,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
                 {item.volunteer?._id === user?.id && (
                   <View style={styles.commentActions}>
                     <TouchableOpacity onPress={() => openEditForm(item)} style={styles.editBtn}><Text style={styles.editBtnText}>Edit</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteComment(item._id)} style={styles.deleteBtn}><Text style={styles.deleteBtnText}>Del</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDeleteReview(item._id)} style={styles.deleteBtn}><Text style={styles.deleteBtnText}>Del</Text></TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -297,7 +476,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               <Switch value={formAnonymous} onValueChange={setFormAnonymous} trackColor={{ false: '#ccc', true: '#2e86de' }} thumbColor="#fff" />
             </View>
             <View style={styles.formButtons}>
-              <TouchableOpacity style={styles.submitCommentButton} onPress={handleSubmitComment} disabled={formLoading}>
+              <TouchableOpacity style={styles.submitCommentButton} onPress={handleSubmitReview} disabled={formLoading}>
                 {formLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>{editingId ? 'Update' : 'Submit'}</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelCommentButton} onPress={closeForm}>
@@ -305,6 +484,32 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+        )}
+      </View>
+
+      {/* Comments Section */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Comments {comments.length > 0 ? `(${comments.length})` : ''}</Text>
+
+        {/* Add comment input */}
+        <View style={styles.addCommentRow}>
+          <TextInput
+            style={styles.commentInput}
+            placeholder="Write a comment..."
+            placeholderTextColor="#aaa"
+            value={commentText}
+            onChangeText={setCommentText}
+            multiline
+          />
+          <TouchableOpacity style={styles.commentSubmitBtn} onPress={handleAddComment} disabled={commentSubmitting || !commentText.trim()}>
+            {commentSubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.commentSubmitText}>Post</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {comments.length === 0 ? (
+          <Text style={styles.noFeedbackText}>No comments yet. Start the conversation!</Text>
+        ) : (
+          comments.map(item => <CommentItem key={item._id} item={item} />)
         )}
       </View>
 
@@ -356,11 +561,16 @@ const styles = StyleSheet.create({
   pastBannerText: { color: '#fff', fontWeight: 'bold' },
   headerCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 20, marginBottom: 15 },
   title: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 10 },
-  headerRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  headerRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
   categoryBadge: { backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   ratingBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   ratingText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  voteRow: { flexDirection: 'row', gap: 10 },
+  voteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  voteBtnLikeActive: { backgroundColor: 'rgba(46,134,222,0.5)', borderColor: '#fff' },
+  voteBtnDislikeActive: { backgroundColor: 'rgba(231,76,60,0.4)', borderColor: '#fff' },
+  voteBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
   detail: { fontSize: 15, color: '#555', marginBottom: 7 },
@@ -390,6 +600,7 @@ const styles = StyleSheet.create({
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   deleteButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  // Reviews
   noFeedbackText: { color: '#999', fontSize: 14, textAlign: 'center', padding: 10 },
   feedbackItem: { borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingVertical: 12 },
   feedbackHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
@@ -423,6 +634,34 @@ const styles = StyleSheet.create({
   submitCommentText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   cancelCommentButton: { flex: 1, borderWidth: 1, borderColor: '#999', borderRadius: 8, padding: 12, alignItems: 'center' },
   cancelCommentText: { color: '#555', fontWeight: 'bold', fontSize: 15 },
+  // Comments section
+  addCommentRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  commentInput: { flex: 1, backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, fontSize: 14, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 44, textAlignVertical: 'top' },
+  commentSubmitBtn: { backgroundColor: '#2e86de', borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center' },
+  commentSubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  commentItem: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 10 },
+  commentItemReply: { backgroundColor: '#f0f4f8', marginLeft: 20, marginTop: 6, marginBottom: 4 },
+  commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  commentAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#2e86de', justifyContent: 'center', alignItems: 'center' },
+  commentAvatarText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  commentAuthor: { fontSize: 13, fontWeight: 'bold', color: '#333' },
+  commentDate: { fontSize: 11, color: '#aaa' },
+  commentDeleteBtn: { backgroundColor: '#ffe0e0', borderRadius: 12, padding: 4, paddingHorizontal: 7 },
+  commentDeleteText: { color: '#e74c3c', fontSize: 12, fontWeight: 'bold' },
+  commentText: { fontSize: 14, color: '#444', lineHeight: 20, marginBottom: 8 },
+  commentFooter: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
+  commentVoteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: '#ddd' },
+  commentVoteBtnLikeActive: { backgroundColor: '#e8f4fd', borderColor: '#2e86de' },
+  commentVoteBtnDislikeActive: { backgroundColor: '#ffe8e8', borderColor: '#e74c3c' },
+  commentVoteBtnText: { fontSize: 12, color: '#555' },
+  replyBtn: { backgroundColor: '#f0f4f8', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#ddd' },
+  replyBtnText: { fontSize: 12, color: '#555', fontWeight: '600' },
+  showRepliesBtn: { backgroundColor: '#e8f4fd', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
+  showRepliesBtnText: { fontSize: 12, color: '#2e86de', fontWeight: '600' },
+  replyInputRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  replyInput: { flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 13, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 38, textAlignVertical: 'top' },
+  replySubmitBtn: { backgroundColor: '#2e86de', borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center' },
+  replySubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   // Donors modal
   donorsModal: { flex: 1, backgroundColor: '#f0f4f8' },
   donorsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#27ae60', padding: 20, paddingTop: 15 },

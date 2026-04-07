@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, optionalProtect } = require('../middleware/authMiddleware');
 const {
   createOpportunity,
   getOpportunities,
@@ -18,9 +18,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-router.get('/', getOpportunities);
+router.get('/', optionalProtect, getOpportunities);
 router.get('/my', protect, getMyOpportunities);
-router.get('/:id', getOpportunityById);
+router.get('/:id', optionalProtect, getOpportunityById);
 router.post('/', protect, upload.single('bannerImage'), createOpportunity);
 router.put('/:id', protect, upload.single('bannerImage'), updateOpportunity);
 router.delete('/:id', protect, deleteOpportunity);

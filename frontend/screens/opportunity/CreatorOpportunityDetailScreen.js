@@ -14,6 +14,7 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
   const [opportunity, setOpportunity] = useState(null);
   const [applications, setApplications] = useState([]);
   const [fundraisers, setFundraisers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('applications');
   const [appFilter, setAppFilter] = useState('all');
@@ -52,16 +53,28 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
   const [newFrTarget, setNewFrTarget] = useState('');
   const [addFrLoading, setAddFrLoading] = useState(false);
 
+  // Groups
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDesc, setNewGroupDesc] = useState('');
+  const [groupCreateLoading, setGroupCreateLoading] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  // Assign-to-group modal
+  const [assignModal, setAssignModal] = useState(null); // application object
+  const [assignLoading, setAssignLoading] = useState(false);
+
   const fetchData = async () => {
     try {
-      const [oppRes, appRes, frRes] = await Promise.all([
+      const [oppRes, appRes, frRes, grpRes] = await Promise.all([
         api.get(`/api/opportunities/${opportunityId}`),
         api.get(`/api/applications/opportunity/${opportunityId}`),
-        api.get(`/api/fundraisers/opportunity/${opportunityId}`)
+        api.get(`/api/fundraisers/opportunity/${opportunityId}`),
+        api.get(`/api/application-groups/opportunity/${opportunityId}`)
       ]);
       setOpportunity(oppRes.data);
       setApplications(appRes.data);
       setFundraisers(frRes.data);
+      setGroups(grpRes.data);
       if (frRes.data.length > 0 && !selectedFundraiser) {
         loadFundraiserDonations(frRes.data[0]._id);
         setSelectedFundraiser(frRes.data[0]);
@@ -93,11 +106,8 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
     try {
       const res = await api.get(`/api/fundraisers/${fr._id}/donors`);
       setDonors(res.data.donors);
-    } catch {
-      setDonors([]);
-    } finally {
-      setDonorsLoading(false);
-    }
+    } catch { setDonors([]); }
+    finally { setDonorsLoading(false); }
   };
 
   const openEdit = () => {
@@ -201,7 +211,6 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
   const handleUpdateAppStatus = async (applicationId, status) => {
     try {
       await api.put(`/api/applications/${applicationId}/status`, { status });
-      Alert.alert('Updated', `Application ${status}!`);
       fetchData();
     } catch { Alert.alert('Error', 'Failed to update status'); }
   };
@@ -216,7 +225,6 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
           onPress: async () => {
             try {
               await api.put(`/api/donations/${donationId}/status`, { status });
-              Alert.alert('Done', `Donation ${status}!`);
               if (selectedFundraiser) loadFundraiserDonations(selectedFundraiser._id);
               fetchData();
             } catch { Alert.alert('Error', 'Failed'); }
@@ -226,13 +234,129 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  const appStatusColor = (s) => ({ approved: '#27ae60', completed: '#2e86de' }[s] || '#f39c12');
+  // Groups
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) { Alert.alert('Missing', 'Enter a group name'); return; }
+    setGroupCreateLoading(true);
+    try {
+      await api.post('/api/application-groups', { opportunityId, name: newGroupName, description: newGroupDesc });
+      setShowCreateGroup(false);
+      setNewGroupName(''); setNewGroupDesc('');
+      fetchData();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed');
+    } finally {
+      setGroupCreateLoading(false);
+    }
+  };
+
+  const handleDeleteGroup = (groupId, groupName) => {
+    Alert.alert('Delete Group', `Delete group "${groupName}"? Applications stay unaffected.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await api.delete(`/api/application-groups/${groupId}`);
+          fetchData();
+        } catch { Alert.alert('Error', 'Failed'); }
+      }}
+    ]);
+  };
+
+  const handleAcceptAllInGroup = (groupId, groupName, pendingCount) => {
+    if (pendingCount === 0) { Alert.alert('No pending', 'No pending applications in this group'); return; }
+    Alert.alert('Accept All', `Accept all ${pendingCount} pending application(s) in "${groupName}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Accept All', onPress: async () => {
+        try {
+          const res = await api.post(`/api/application-groups/${groupId}/accept-all`);
+          Alert.alert('Done', res.data.message);
+          fetchData();
+        } catch { Alert.alert('Error', 'Failed'); }
+      }}
+    ]);
+  };
+
+  const handleAssignToGroup = async (groupId) => {
+    if (!assignModal) return;
+    setAssignLoading(true);
+    try {
+      await api.post(`/api/application-groups/${groupId}/assign`, { applicationId: assignModal._id });
+      setAssignModal(null);
+      fetchData();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed');
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleRemoveFromGroup = async (groupId, appId) => {
+    try {
+      await api.delete(`/api/application-groups/${groupId}/remove/${appId}`);
+      fetchData();
+    } catch { Alert.alert('Error', 'Failed'); }
+  };
+
+  // Compute grouped app IDs
+  const groupedAppIds = new Set(groups.flatMap(g => g.applications.map(a => a._id || a)));
+  const ungroupedApps = applications.filter(a => !groupedAppIds.has(a._id));
+
+  const appStatusColor = (s) => ({ approved: '#27ae60', completed: '#2e86de', rejected: '#e74c3c' }[s] || '#f39c12');
   const donStatusColor = (s) => ({ confirmed: '#27ae60', rejected: '#e74c3c' }[s] || '#f39c12');
 
   const filteredApps = appFilter === 'all' ? applications : applications.filter(a => a.status === appFilter);
   const filteredDonations = donationFilter === 'all' ? fundraiserDonations : fundraiserDonations.filter(d => d.status === donationFilter);
 
   const fmt = (d) => d ? new Date(d).toDateString() : 'Not set';
+
+  const AppCard = ({ app, groupId }) => (
+    <View style={styles.appCard}>
+      <View style={styles.cardTopRow}>
+        <View style={styles.avatarRow}>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{app.volunteer?.name?.charAt(0).toUpperCase()}</Text></View>
+          <View>
+            <Text style={styles.personName}>{app.volunteer?.name}</Text>
+            <Text style={styles.personEmail}>{app.volunteer?.email}</Text>
+          </View>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: appStatusColor(app.status) }]}>
+          <Text style={styles.statusText}>{app.status}</Text>
+        </View>
+      </View>
+      {app.photo ? <Image source={{ uri: `${BASE_URL}/${app.photo}` }} style={styles.applicantPhoto} /> : null}
+      {app.phone ? <Text style={styles.appDetail}>📞 {app.phone}</Text> : null}
+      {app.email ? <Text style={styles.appDetail}>✉️ {app.email}</Text> : null}
+      {app.coverLetter ? <Text style={styles.appDetail}>💬 {app.coverLetter}</Text> : null}
+      <Text style={styles.appDate}>{new Date(app.appliedAt).toDateString()}</Text>
+
+      <View style={styles.actionButtons}>
+        {app.status === 'pending' && <>
+          <TouchableOpacity style={styles.acceptButton} onPress={() => handleUpdateAppStatus(app._id, 'approved')}><Text style={styles.actionBtnText}>✅ Accept</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.rejectButton} onPress={() => handleUpdateAppStatus(app._id, 'rejected')}><Text style={styles.actionBtnText}>❌ Reject</Text></TouchableOpacity>
+        </>}
+        {app.status === 'approved' && (
+          <TouchableOpacity style={styles.completeButton} onPress={() => handleUpdateAppStatus(app._id, 'completed')}><Text style={styles.actionBtnText}>🏆 Complete</Text></TouchableOpacity>
+        )}
+        {app.status === 'completed' && (
+          <TouchableOpacity style={styles.certButton} onPress={() => navigation.navigate('GenerateCertificate', { application: app, opportunity })}><Text style={styles.actionBtnText}>🎓 Certificate</Text></TouchableOpacity>
+        )}
+      </View>
+
+      {/* Group actions */}
+      <View style={styles.groupAppActions}>
+        {app.status === 'pending' && (
+          <TouchableOpacity style={styles.assignGroupBtn} onPress={() => setAssignModal(app)}>
+            <Text style={styles.assignGroupBtnText}>📂 Move to Group</Text>
+          </TouchableOpacity>
+        )}
+        {groupId && (
+          <TouchableOpacity style={styles.removeFromGroupBtn} onPress={() => handleRemoveFromGroup(groupId, app._id)}>
+            <Text style={styles.removeFromGroupText}>✕ Remove from group</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
 
@@ -302,7 +426,7 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
           { n: applications.length, l: 'Total' },
           { n: applications.filter(a => a.status === 'pending').length, l: 'Pending' },
           { n: applications.filter(a => a.status === 'approved').length, l: 'Accepted' },
-          { n: applications.filter(a => a.status === 'completed').length, l: 'Done' }
+          { n: applications.filter(a => a.status === 'rejected').length, l: 'Rejected' },
         ].map(s => (
           <View key={s.l} style={styles.statBox}>
             <Text style={styles.statNumber}>{s.n}</Text>
@@ -324,49 +448,127 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
       {/* Applications tab */}
       {activeTab === 'applications' && (
         <View>
+          {/* Filter tabs */}
           <View style={styles.filterContainer}>
-            {['all', 'pending', 'approved', 'completed'].map(f => (
+            {['all', 'pending', 'approved', 'rejected', 'completed'].map(f => (
               <TouchableOpacity key={f} style={[styles.filterTab, appFilter === f && styles.filterTabActive]} onPress={() => setAppFilter(f)}>
                 <Text style={[styles.filterTabText, appFilter === f && styles.filterTabTextActive]}>{f.charAt(0).toUpperCase() + f.slice(1)}</Text>
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.sectionTitle}>Applications ({filteredApps.length})</Text>
-          {filteredApps.length === 0 ? (
-            <View style={styles.emptyContainer}><Text style={styles.emptyText}>No applications</Text></View>
-          ) : filteredApps.map(app => (
-            <View key={app._id} style={styles.appCard}>
-              <View style={styles.cardTopRow}>
-                <View style={styles.avatarRow}>
-                  <View style={styles.avatar}><Text style={styles.avatarText}>{app.volunteer?.name?.charAt(0).toUpperCase()}</Text></View>
-                  <View>
-                    <Text style={styles.personName}>{app.volunteer?.name}</Text>
-                    <Text style={styles.personEmail}>{app.volunteer?.email}</Text>
-                  </View>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: appStatusColor(app.status) }]}>
-                  <Text style={styles.statusText}>{app.status}</Text>
-                </View>
+
+          {/* Groups section — only when filter is 'all' or 'pending' */}
+          {(appFilter === 'all' || appFilter === 'pending') && (
+            <View>
+              <View style={styles.groupsHeader}>
+                <Text style={styles.sectionTitle}>Groups ({groups.length})</Text>
+                <TouchableOpacity style={styles.createGroupBtn} onPress={() => setShowCreateGroup(!showCreateGroup)}>
+                  <Text style={styles.createGroupBtnText}>{showCreateGroup ? '✕' : '+ New Group'}</Text>
+                </TouchableOpacity>
               </View>
-              {app.photo ? <Image source={{ uri: `${BASE_URL}/${app.photo}` }} style={styles.applicantPhoto} /> : null}
-              <Text style={styles.appDetail}>📞 {app.phone}</Text>
-              <Text style={styles.appDetail}>✉️ {app.email}</Text>
-              <Text style={styles.appDetail}>💬 {app.coverLetter}</Text>
-              <Text style={styles.appDate}>{new Date(app.appliedAt).toDateString()}</Text>
-              <View style={styles.actionButtons}>
-                {app.status === 'pending' && <TouchableOpacity style={styles.acceptButton} onPress={() => handleUpdateAppStatus(app._id, 'approved')}><Text style={styles.actionBtnText}>✅ Accept</Text></TouchableOpacity>}
-                {app.status === 'approved' && <TouchableOpacity style={styles.completeButton} onPress={() => handleUpdateAppStatus(app._id, 'completed')}><Text style={styles.actionBtnText}>🏆 Complete</Text></TouchableOpacity>}
-                {app.status === 'completed' && <TouchableOpacity style={styles.certButton} onPress={() => navigation.navigate('GenerateCertificate', { application: app, opportunity })}><Text style={styles.actionBtnText}>🎓 Certificate</Text></TouchableOpacity>}
-              </View>
+
+              {showCreateGroup && (
+                <View style={styles.createGroupForm}>
+                  <TextInput
+                    style={styles.input} placeholderTextColor="#999"
+                    placeholder="Group name (e.g. Potential, Not Qualified) *"
+                    value={newGroupName} onChangeText={setNewGroupName}
+                  />
+                  <TextInput
+                    style={styles.input} placeholderTextColor="#999"
+                    placeholder="Description (optional)"
+                    value={newGroupDesc} onChangeText={setNewGroupDesc}
+                  />
+                  <TouchableOpacity style={styles.saveButton} onPress={handleCreateGroup} disabled={groupCreateLoading}>
+                    {groupCreateLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Create Group</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {groups.length === 0 ? (
+                <View style={styles.noGroupsHint}>
+                  <Text style={styles.noGroupsText}>💡 Create groups to organise pending applications (e.g. "Potential", "Not Qualified")</Text>
+                </View>
+              ) : (
+                groups.map(group => {
+                  const groupApps = group.applications || [];
+                  const pendingInGroup = groupApps.filter(a => a.status === 'pending');
+                  const isExpanded = expandedGroups[group._id];
+                  return (
+                    <View key={group._id} style={styles.groupCard}>
+                      <TouchableOpacity
+                        style={styles.groupCardHeader}
+                        onPress={() => setExpandedGroups(prev => ({ ...prev, [group._id]: !prev[group._id] }))}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.groupName}>{group.name}</Text>
+                          {group.description ? <Text style={styles.groupDesc}>{group.description}</Text> : null}
+                          <Text style={styles.groupCount}>{groupApps.length} application{groupApps.length !== 1 ? 's' : ''} · {pendingInGroup.length} pending</Text>
+                        </View>
+                        <View style={styles.groupHeaderRight}>
+                          <Text style={styles.expandIcon}>{isExpanded ? '▲' : '▼'}</Text>
+                        </View>
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View style={styles.groupBody}>
+                          <View style={styles.groupActions}>
+                            <TouchableOpacity
+                              style={[styles.acceptAllBtn, pendingInGroup.length === 0 && styles.acceptAllBtnDisabled]}
+                              onPress={() => handleAcceptAllInGroup(group._id, group.name, pendingInGroup.length)}
+                            >
+                              <Text style={styles.acceptAllBtnText}>✅ Accept All Pending ({pendingInGroup.length})</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.deleteGroupBtn} onPress={() => handleDeleteGroup(group._id, group.name)}>
+                              <Text style={styles.deleteGroupBtnText}>🗑️</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {groupApps.length === 0 ? (
+                            <Text style={styles.emptyGroupText}>No applications in this group yet. Use "Move to Group" on an application.</Text>
+                          ) : (
+                            groupApps.map(app => <AppCard key={app._id} app={app} groupId={group._id} />)
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+
+              {/* Ungrouped pending */}
+              {ungroupedApps.filter(a => appFilter === 'pending' ? a.status === 'pending' : a.status === 'pending').length > 0 && (
+                <Text style={styles.ungroupedLabel}>📋 Ungrouped Pending ({ungroupedApps.filter(a => a.status === 'pending').length})</Text>
+              )}
+              {ungroupedApps.filter(a => a.status === 'pending').map(app => <AppCard key={app._id} app={app} />)}
             </View>
-          ))}
+          )}
+
+          {/* All applications list (for non-pending filters) */}
+          {appFilter !== 'all' && appFilter !== 'pending' && (
+            <View>
+              <Text style={styles.sectionTitle}>Applications ({filteredApps.length})</Text>
+              {filteredApps.length === 0 ? (
+                <View style={styles.emptyContainer}><Text style={styles.emptyText}>No applications</Text></View>
+              ) : filteredApps.map(app => <AppCard key={app._id} app={app} />)}
+            </View>
+          )}
+
+          {/* Show non-pending ungrouped in 'all' view */}
+          {appFilter === 'all' && (
+            <View>
+              {ungroupedApps.filter(a => a.status !== 'pending').length > 0 && (
+                <Text style={styles.ungroupedLabel}>📋 Other Applications</Text>
+              )}
+              {ungroupedApps.filter(a => a.status !== 'pending').map(app => <AppCard key={app._id} app={app} />)}
+            </View>
+          )}
         </View>
       )}
 
       {/* Fundraisers tab */}
       {activeTab === 'donations' && (
         <View>
-          {/* Add fundraiser button */}
           <TouchableOpacity style={styles.addFundraiserBtn} onPress={() => setShowAddFundraiser(!showAddFundraiser)}>
             <Text style={styles.addFundraiserBtnText}>{showAddFundraiser ? '✕ Cancel' : '+ Add New Fundraiser'}</Text>
           </TouchableOpacity>
@@ -404,7 +606,7 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.targetAmt}> / {fr.targetAmount.toLocaleString()}</Text>
                   </View>
                   <View style={styles.progressBg}><View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: fr.status === 'completed' ? '#888' : '#27ae60' }]} /></View>
-                  <Text style={styles.pctText}>{pct}% · {fr.donorCount} donor{fr.donorCount !== 1 ? 's' : ''}</Text>
+                  <Text style={styles.pctText}>{pct}% · {fr.donorCount || 0} donor{(fr.donorCount || 0) !== 1 ? 's' : ''}</Text>
                   <View style={styles.frButtons}>
                     <TouchableOpacity style={styles.viewDonorsBtn} onPress={() => openDonors(fr)}>
                       <Text style={styles.viewDonorsBtnText}>View Donors</Text>
@@ -417,7 +619,6 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
                   </View>
                 </TouchableOpacity>
 
-                {/* Donations for this fundraiser (expanded when selected) */}
                 {isSelected && (
                   <View style={styles.donationsSection}>
                     <View style={styles.filterContainer}>
@@ -446,7 +647,10 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.donationAmount}>LKR {Number(don.amount).toLocaleString()}</Text>
                         {don.donorPhone ? <Text style={styles.appDetail}>📞 {don.donorPhone}</Text> : null}
                         {don.message ? <Text style={styles.appDetail}>💬 {don.message}</Text> : null}
-                        {don.receiptImage ? <Image source={{ uri: `${BASE_URL}/${don.receiptImage}` }} style={styles.receiptImg} resizeMode="cover" /> : <Text style={styles.noReceiptText}>No receipt</Text>}
+                        {don.receiptImage
+                          ? <Image source={{ uri: `${BASE_URL}/${don.receiptImage}` }} style={styles.receiptImg} resizeMode="cover" />
+                          : <Text style={styles.noReceiptText}>No receipt</Text>
+                        }
                         <Text style={styles.appDate}>{new Date(don.createdAt).toDateString()}</Text>
                         {don.status === 'pending' && (
                           <View style={styles.actionButtons}>
@@ -493,6 +697,32 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
           )}
         </View>
       </Modal>
+
+      {/* Assign-to-group modal */}
+      <Modal visible={!!assignModal} transparent animationType="slide" onRequestClose={() => setAssignModal(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAssignModal(null)}>
+          <View style={styles.assignModal} onStartShouldSetResponder={() => true}>
+            <View style={styles.assignModalHandle} />
+            <Text style={styles.assignModalTitle}>Move to Group</Text>
+            <Text style={styles.assignModalSubtitle}>{assignModal?.volunteer?.name}</Text>
+            {groups.length === 0 ? (
+              <Text style={styles.noGroupsText}>No groups yet. Create one first.</Text>
+            ) : groups.map(g => (
+              <TouchableOpacity key={g._id} style={styles.assignGroupItem} onPress={() => handleAssignToGroup(g._id)} disabled={assignLoading}>
+                <Text style={styles.assignGroupItemIcon}>📂</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.assignGroupItemName}>{g.name}</Text>
+                  {g.description ? <Text style={styles.assignGroupItemDesc}>{g.description}</Text> : null}
+                </View>
+                {assignLoading ? <ActivityIndicator size="small" color="#2e86de" /> : <Text style={styles.assignGroupItemArrow}>→</Text>}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.assignCancelBtn} onPress={() => setAssignModal(null)}>
+              <Text style={styles.assignCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 };
@@ -520,24 +750,48 @@ const styles = StyleSheet.create({
   saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   cancelEditButton: { flex: 1, borderWidth: 1, borderColor: '#999', borderRadius: 8, padding: 12, alignItems: 'center' },
   cancelEditText: { color: '#555', fontWeight: 'bold', fontSize: 15 },
-  statsRow: { flexDirection: 'row', marginBottom: 15, gap: 6 },
+  statsRow: { flexDirection: 'row', marginBottom: 15, gap: 5 },
   statBox: { flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 10, alignItems: 'center', elevation: 2 },
-  statNumber: { fontSize: 22, fontWeight: 'bold', color: '#2e86de' },
-  statLabel: { fontSize: 11, color: '#888' },
+  statNumber: { fontSize: 20, fontWeight: 'bold', color: '#2e86de' },
+  statLabel: { fontSize: 10, color: '#888' },
   mainTabsRow: { flexDirection: 'row', marginBottom: 15, backgroundColor: '#fff', borderRadius: 10, padding: 4, elevation: 2 },
   mainTab: { flex: 1, padding: 10, alignItems: 'center', borderRadius: 8 },
   mainTabActive: { backgroundColor: '#2e86de' },
   mainTabText: { color: '#2e86de', fontWeight: 'bold', fontSize: 13 },
   mainTabTextActive: { color: '#fff' },
-  filterContainer: { flexDirection: 'row', marginBottom: 12, gap: 5 },
-  filterTab: { flex: 1, padding: 7, borderRadius: 20, borderWidth: 1, borderColor: '#2e86de', alignItems: 'center' },
+  filterContainer: { flexDirection: 'row', marginBottom: 12, gap: 4, flexWrap: 'wrap' },
+  filterTab: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#2e86de', alignItems: 'center' },
   filterTabActive: { backgroundColor: '#2e86de' },
-  filterTabText: { color: '#2e86de', fontSize: 10, fontWeight: 'bold' },
+  filterTabText: { color: '#2e86de', fontSize: 11, fontWeight: 'bold' },
   filterTabTextActive: { color: '#fff' },
-  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10 },
+  // Groups
+  groupsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  createGroupBtn: { backgroundColor: '#9b59b6', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  createGroupBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  createGroupForm: { backgroundColor: '#f8f4ff', borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#9b59b6' },
+  noGroupsHint: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 12 },
+  noGroupsText: { color: '#888', fontSize: 13, textAlign: 'center' },
+  groupCard: { backgroundColor: '#fff', borderRadius: 10, marginBottom: 12, elevation: 2, overflow: 'hidden', borderLeftWidth: 4, borderLeftColor: '#9b59b6' },
+  groupCardHeader: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#faf7ff' },
+  groupName: { fontSize: 15, fontWeight: 'bold', color: '#333' },
+  groupDesc: { fontSize: 12, color: '#888', marginTop: 2 },
+  groupCount: { fontSize: 12, color: '#9b59b6', marginTop: 3, fontWeight: '600' },
+  groupHeaderRight: { paddingLeft: 10 },
+  expandIcon: { fontSize: 14, color: '#9b59b6', fontWeight: 'bold' },
+  groupBody: { padding: 12, paddingTop: 0 },
+  groupActions: { flexDirection: 'row', gap: 8, marginBottom: 10, marginTop: 10 },
+  acceptAllBtn: { flex: 1, backgroundColor: '#27ae60', borderRadius: 8, padding: 10, alignItems: 'center' },
+  acceptAllBtnDisabled: { backgroundColor: '#aaa' },
+  acceptAllBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  deleteGroupBtn: { backgroundColor: '#ffe0e0', borderRadius: 8, padding: 10, alignItems: 'center', paddingHorizontal: 14 },
+  deleteGroupBtnText: { fontSize: 16 },
+  emptyGroupText: { color: '#aaa', fontSize: 13, textAlign: 'center', padding: 10 },
+  ungroupedLabel: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 8, marginTop: 4 },
+  // App card
   emptyContainer: { alignItems: 'center', padding: 30 },
   emptyText: { color: '#999', fontSize: 15 },
-  appCard: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3 },
+  appCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, elevation: 2, borderLeftWidth: 3, borderLeftColor: '#2e86de' },
   donationCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, elevation: 2, borderLeftWidth: 3, borderLeftColor: '#27ae60' },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -552,13 +806,19 @@ const styles = StyleSheet.create({
   noReceiptText: { color: '#aaa', fontSize: 13, marginVertical: 4 },
   donationAmount: { fontSize: 20, fontWeight: 'bold', color: '#27ae60', marginBottom: 5 },
   appDetail: { color: '#555', marginBottom: 4, fontSize: 14 },
-  appDate: { color: '#999', fontSize: 12, marginTop: 4, marginBottom: 8 },
-  actionButtons: { flexDirection: 'row', gap: 8 },
+  appDate: { color: '#999', fontSize: 12, marginTop: 4, marginBottom: 6 },
+  actionButtons: { flexDirection: 'row', gap: 8, marginBottom: 6 },
   acceptButton: { flex: 1, backgroundColor: '#27ae60', borderRadius: 8, padding: 10, alignItems: 'center' },
   rejectButton: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center' },
   completeButton: { flex: 1, backgroundColor: '#2e86de', borderRadius: 8, padding: 10, alignItems: 'center' },
   certButton: { flex: 1, backgroundColor: '#f39c12', borderRadius: 8, padding: 10, alignItems: 'center' },
   actionBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  groupAppActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  assignGroupBtn: { backgroundColor: '#f0f4f8', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: '#9b59b6' },
+  assignGroupBtnText: { color: '#9b59b6', fontSize: 12, fontWeight: 'bold' },
+  removeFromGroupBtn: { backgroundColor: '#ffe8e8', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  removeFromGroupText: { color: '#e74c3c', fontSize: 12, fontWeight: 'bold' },
+  // Fundraisers
   addFundraiserBtn: { backgroundColor: '#27ae60', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 12 },
   addFundraiserBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   addFundraiserForm: { backgroundColor: '#f0fff4', borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#27ae60' },
@@ -594,7 +854,20 @@ const styles = StyleSheet.create({
   donorRankText: { fontSize: 22 },
   donorName: { fontSize: 15, fontWeight: 'bold', color: '#333' },
   donorMessage: { fontSize: 13, color: '#888', fontStyle: 'italic', marginTop: 2 },
-  donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' }
+  donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' },
+  // Assign modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  assignModal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
+  assignModalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  assignModalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 4 },
+  assignModalSubtitle: { fontSize: 14, color: '#888', marginBottom: 16 },
+  assignGroupItem: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#f8f9fa', borderRadius: 10, marginBottom: 8 },
+  assignGroupItemIcon: { fontSize: 20, marginRight: 12 },
+  assignGroupItemName: { fontSize: 15, fontWeight: 'bold', color: '#333' },
+  assignGroupItemDesc: { fontSize: 12, color: '#888', marginTop: 2 },
+  assignGroupItemArrow: { fontSize: 18, color: '#9b59b6', fontWeight: 'bold' },
+  assignCancelBtn: { marginTop: 8, padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f0f0f0' },
+  assignCancelText: { color: '#888', fontSize: 15 }
 });
 
 export default CreatorOpportunityDetailScreen;

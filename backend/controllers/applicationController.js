@@ -93,8 +93,8 @@ const updateApplicationStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    if (!['approved', 'completed'].includes(status)) {
-      return res.status(400).json({ message: 'Status must be approved or completed' });
+    if (!['approved', 'rejected', 'completed'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be approved, rejected, or completed' });
     }
 
     const application = await Application.findById(req.params.id);

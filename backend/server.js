@@ -60,6 +60,15 @@ app.use('/api/favourites', favouriteRoutes);
 const fundraiserRoutes = require('./routes/fundraiserRoutes');
 app.use('/api/fundraisers', fundraiserRoutes);
 
+const voteRoutes = require('./routes/voteRoutes');
+app.use('/api/votes', voteRoutes);
+
+const commentRoutes = require('./routes/commentRoutes');
+app.use('/api/comments', commentRoutes);
+
+const applicationGroupRoutes = require('./routes/applicationGroupRoutes');
+app.use('/api/application-groups', applicationGroupRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

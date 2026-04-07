@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, TextInput, ActivityIndicator,
-  Alert, RefreshControl, Image, Modal
+  Alert, RefreshControl, Image, Modal, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../api';
@@ -10,11 +10,23 @@ import { AuthContext } from '../../context/AuthContext';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
+const CATEGORIES = [
+  { key: '', label: 'All', icon: '🌐' },
+  { key: 'education', label: 'Education', icon: '🎓' },
+  { key: 'environment', label: 'Environment', icon: '🌿' },
+  { key: 'health', label: 'Health', icon: '🏥' },
+  { key: 'community', label: 'Community', icon: '🤝' },
+  { key: 'animals', label: 'Animals', icon: '🐾' },
+  { key: 'other', label: 'Other', icon: '📦' },
+];
+
 const OpportunityListScreen = ({ navigation }) => {
+  const [activeTab, setActiveTab] = useState('home');
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const { user, logout } = useContext(AuthContext);
 
   // Favourites modal
@@ -23,9 +35,14 @@ const OpportunityListScreen = ({ navigation }) => {
   const [pendingFavOpp, setPendingFavOpp] = useState(null);
   const [favLoading, setFavLoading] = useState(false);
 
-  const fetchOpportunities = async (searchTerm = '') => {
+  const fetchOpportunities = useCallback(async (searchTerm = '', category = '', tab = 'home') => {
     try {
-      const response = await api.get(`/api/opportunities?search=${searchTerm}`);
+      const sort = tab === 'popular' ? 'popular' : tab === 'toprated' ? 'toprated' : '';
+      let url = `/api/opportunities?`;
+      if (searchTerm) url += `search=${encodeURIComponent(searchTerm)}&`;
+      if (category) url += `category=${category}&`;
+      if (sort) url += `sort=${sort}`;
+      const response = await api.get(url);
       setOpportunities(response.data);
     } catch {
       Alert.alert('Error', 'Failed to load opportunities');
@@ -33,12 +50,48 @@ const OpportunityListScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchOpportunities(search, selectedCategory, activeTab);
+  }, [activeTab]);
+
+  const handleSearch = (text) => {
+    setSearch(text);
+    fetchOpportunities(text, selectedCategory, activeTab);
   };
 
-  useEffect(() => { fetchOpportunities(); }, []);
+  const handleCategory = (cat) => {
+    setSelectedCategory(cat);
+    fetchOpportunities(search, cat, activeTab);
+  };
 
-  const handleSearch = (text) => { setSearch(text); fetchOpportunities(text); };
-  const onRefresh = () => { setRefreshing(true); fetchOpportunities(search); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchOpportunities(search, selectedCategory, activeTab);
+  };
+
+  const handleTabChange = (tab) => {
+    if (tab === activeTab) return;
+    setSearch('');
+    setSelectedCategory('');
+    setOpportunities([]);
+    setLoading(true);
+    setActiveTab(tab);
+  };
+
+  const handleVote = async (item, vote) => {
+    try {
+      const res = await api.post('/api/votes', { targetId: item._id, targetType: 'opportunity', vote });
+      setOpportunities(prev => prev.map(o => o._id === item._id
+        ? { ...o, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote }
+        : o
+      ));
+    } catch {
+      Alert.alert('Error', 'Failed to vote');
+    }
+  };
 
   const handleAddToFavourites = async (opportunity) => {
     setPendingFavOpp(opportunity);
@@ -79,12 +132,14 @@ const OpportunityListScreen = ({ navigation }) => {
   const renderItem = ({ item }) => {
     const isOwn = item.createdBy?._id === user?.id || item.createdBy?.id === user?.id;
     const hasFundraisers = item.fundraisers?.length > 0;
+    const likeActive = item.userVote === 'like';
+    const dislikeActive = item.userVote === 'dislike';
 
     return (
       <TouchableOpacity
         style={styles.card}
         onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
         {item.bannerImage ? (
           <Image source={{ uri: `${BASE_URL}/${item.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
@@ -113,7 +168,6 @@ const OpportunityListScreen = ({ navigation }) => {
             : 'Date not set'}
         </Text>
 
-        {/* Fundraiser mini-bars */}
         {hasFundraisers && item.fundraisers.map(fr => {
           const pct = fr.targetAmount > 0 ? Math.min(100, Math.round((fr.collectedAmount / fr.targetAmount) * 100)) : 0;
           return (
@@ -133,6 +187,20 @@ const OpportunityListScreen = ({ navigation }) => {
         <View style={styles.cardFooter}>
           <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots</Text>
           <View style={styles.footerRight}>
+            {/* Like/Dislike */}
+            <TouchableOpacity
+              style={[styles.voteBtn, likeActive && styles.voteBtnLikeActive]}
+              onPress={(e) => { e.stopPropagation?.(); handleVote(item, 'like'); }}
+            >
+              <Text style={styles.voteBtnText}>👍 {item.likes || 0}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.voteBtn, dislikeActive && styles.voteBtnDislikeActive]}
+              onPress={(e) => { e.stopPropagation?.(); handleVote(item, 'dislike'); }}
+            >
+              <Text style={styles.voteBtnText}>👎 {item.dislikes || 0}</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.heartButton} onPress={(e) => { e.stopPropagation?.(); handleAddToFavourites(item); }}>
               <Text style={styles.heartIcon}>❤️</Text>
             </TouchableOpacity>
@@ -145,10 +213,40 @@ const OpportunityListScreen = ({ navigation }) => {
     );
   };
 
+  const listHeader = () => (
+    <>
+      {/* Category chips — only on Home tab */}
+      {activeTab === 'home' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={styles.categoryScrollContent}>
+          {CATEGORIES.map(cat => (
+            <TouchableOpacity
+              key={cat.key}
+              style={[styles.categoryChip, selectedCategory === cat.key && styles.categoryChipActive]}
+              onPress={() => handleCategory(cat.key)}
+            >
+              <Text style={styles.categoryChipIcon}>{cat.icon}</Text>
+              <Text style={[styles.categoryChipLabel, selectedCategory === cat.key && styles.categoryChipLabelActive]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>
+          {activeTab === 'home' ? 'Opportunities' : activeTab === 'popular' ? 'Most Popular' : 'Top Rated'}
+        </Text>
+        <Text style={styles.sectionCount}>{opportunities.length} found</Text>
+      </View>
+    </>
+  );
+
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Hello, {user?.name}! 👋</Text>
@@ -159,9 +257,30 @@ const OpportunityListScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput style={styles.searchInput} placeholderTextColor="#999" placeholder="Search opportunities..." value={search} onChangeText={handleSearch} />
+      {/* Search bar — only on Home tab */}
+      {activeTab === 'home' && (
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
+          <TextInput style={styles.searchInput} placeholderTextColor="#999" placeholder="Search opportunities..." value={search} onChangeText={handleSearch} />
+        </View>
+      )}
+
+      {/* Tabs */}
+      <View style={styles.tabBar}>
+        {[
+          { key: 'home', label: 'Home', icon: 'home-outline' },
+          { key: 'popular', label: 'Popular', icon: 'flame-outline' },
+          { key: 'toprated', label: 'Top Rated', icon: 'star-outline' },
+        ].map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => handleTabChange(tab.key)}
+          >
+            <Ionicons name={tab.icon} size={18} color={activeTab === tab.key ? '#2e86de' : '#888'} />
+            <Text style={[styles.tabLabel, activeTab === tab.key && styles.tabLabelActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <TouchableOpacity style={styles.createButton} onPress={() => navigation.navigate('CreateOpportunity')}>
@@ -169,15 +288,11 @@ const OpportunityListScreen = ({ navigation }) => {
         <Text style={styles.createButtonText}>Post New Opportunity</Text>
       </TouchableOpacity>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Opportunities</Text>
-        <Text style={styles.sectionCount}>{opportunities.length} found</Text>
-      </View>
-
       <FlatList
         data={opportunities}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
+        ListHeaderComponent={listHeader}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -239,49 +354,68 @@ const OpportunityListScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
+  container: { flex: 1, backgroundColor: '#f0f4f8', paddingHorizontal: 15, paddingTop: 15 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   welcomeText: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   headerSubtitle: { fontSize: 13, color: '#888', marginTop: 2 },
   logoutButton: { padding: 5 },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ddd' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ddd', elevation: 1 },
   searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, padding: 12, fontSize: 16 },
-  createButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 15, flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  createButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  sectionCount: { fontSize: 14, color: '#888' },
+  searchInput: { flex: 1, padding: 12, fontSize: 16, color: '#333' },
+  // Tabs
+  tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, marginBottom: 10, elevation: 2, overflow: 'hidden' },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 5 },
+  tabActive: { borderBottomWidth: 3, borderBottomColor: '#2e86de', backgroundColor: '#f0f8ff' },
+  tabLabel: { fontSize: 13, color: '#888', fontWeight: '600' },
+  tabLabelActive: { color: '#2e86de' },
+  // Category chips
+  categoryScroll: { marginBottom: 10 },
+  categoryScrollContent: { paddingRight: 10, gap: 8 },
+  categoryChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: '#ddd', gap: 5, elevation: 1 },
+  categoryChipActive: { backgroundColor: '#2e86de', borderColor: '#2e86de' },
+  categoryChipIcon: { fontSize: 16 },
+  categoryChipLabel: { fontSize: 13, color: '#555', fontWeight: '600' },
+  categoryChipLabelActive: { color: '#fff' },
+  createButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  createButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#333' },
+  sectionCount: { fontSize: 13, color: '#888' },
+  // Card
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#2e86de' },
   cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
-  cardImagePlaceholder: { width: '100%', height: 100, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
-  cardImagePlaceholderText: { color: '#2e86de', fontSize: 16 },
+  cardImagePlaceholder: { width: '100%', height: 90, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
+  cardImagePlaceholderText: { color: '#2e86de', fontSize: 20 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   cardHeaderLeft: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   categoryBadge: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  categoryText: { color: '#2e86de', fontSize: 12, fontWeight: 'bold' },
+  categoryText: { color: '#2e86de', fontSize: 11, fontWeight: 'bold', textTransform: 'capitalize' },
   ratingBadge: { backgroundColor: '#fff8e1', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  ratingText: { color: '#f39c12', fontSize: 12, fontWeight: 'bold' },
+  ratingText: { color: '#f39c12', fontSize: 11, fontWeight: 'bold' },
   ownBadge: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   ownBadgeText: { color: '#2e86de', fontSize: 11, fontWeight: 'bold' },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
-  cardDetail: { color: '#555', marginBottom: 4, fontSize: 14 },
+  cardTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 7 },
+  cardDetail: { color: '#555', marginBottom: 3, fontSize: 13 },
   fundraiserMini: { backgroundColor: '#f0fff4', borderRadius: 6, padding: 8, marginTop: 6, marginBottom: 2 },
-  fundraiserMiniRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  fundraiserMiniName: { fontSize: 12, fontWeight: 'bold', color: '#27ae60' },
-  fundraiserMiniDone: { fontSize: 11, color: '#888', fontWeight: 'bold' },
-  fundraiserMiniBarBg: { height: 6, backgroundColor: '#d4edda', borderRadius: 3, overflow: 'hidden', marginBottom: 3 },
+  fundraiserMiniRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  fundraiserMiniName: { fontSize: 11, fontWeight: 'bold', color: '#27ae60' },
+  fundraiserMiniDone: { fontSize: 10, color: '#888', fontWeight: 'bold' },
+  fundraiserMiniBarBg: { height: 5, backgroundColor: '#d4edda', borderRadius: 3, overflow: 'hidden', marginBottom: 3 },
   fundraiserMiniBarFill: { height: '100%', borderRadius: 3 },
-  fundraiserMiniPct: { fontSize: 11, color: '#888' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  cardSpots: { color: '#27ae60', fontWeight: 'bold', fontSize: 14 },
-  footerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heartButton: { backgroundColor: '#ffe0e0', borderRadius: 20, padding: 6 },
-  heartIcon: { fontSize: 16 },
-  applyBadge: { backgroundColor: '#2e86de', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  fundraiserMiniPct: { fontSize: 10, color: '#888' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, flexWrap: 'wrap', gap: 6 },
+  cardSpots: { color: '#27ae60', fontWeight: 'bold', fontSize: 13 },
+  footerRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  voteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f4f8', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: '#ddd' },
+  voteBtnLikeActive: { backgroundColor: '#e8f4fd', borderColor: '#2e86de' },
+  voteBtnDislikeActive: { backgroundColor: '#ffe8e8', borderColor: '#e74c3c' },
+  voteBtnText: { fontSize: 12, color: '#555', fontWeight: '600' },
+  heartButton: { backgroundColor: '#ffe0e0', borderRadius: 18, padding: 6 },
+  heartIcon: { fontSize: 15 },
+  applyBadge: { backgroundColor: '#2e86de', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 5 },
   applyBadgeOwn: { backgroundColor: '#888' },
-  applyBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  applyBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 15 },
   emptySubText: { fontSize: 14, color: '#999', marginTop: 5 },
