@@ -136,4 +136,53 @@ const getLeaderboard = async (req, res) => {
   }
 };
 
-module.exports = { getMyPoints, getLeaderboard };
+const getMyPointsHistory = async (req, res) => {
+  try {
+    const uid = new mongoose.Types.ObjectId(req.user.id);
+    const myOpps = await Opportunity.find({ createdBy: uid }, '_id title');
+    const myOppIds = myOpps.map(o => o._id);
+
+    const [contributions, donations, completedApps] = await Promise.all([
+      Contribution.find({ volunteer: uid, status: 'verified' })
+        .populate('opportunity', 'title')
+        .sort({ createdAt: -1 }),
+      Donation.find({ donor: uid, status: 'confirmed' })
+        .populate({ path: 'fundraiser', select: 'name' })
+        .sort({ createdAt: -1 }),
+      Application.find({ opportunity: { $in: myOppIds }, status: 'completed' })
+        .populate('volunteer', 'name')
+        .populate('opportunity', 'title')
+        .sort({ updatedAt: -1 })
+    ]);
+
+    const history = [
+      ...contributions.map(c => ({
+        type: 'hours',
+        icon: '⏱',
+        label: `${c.hours} hrs verified — ${c.opportunity?.title || 'Opportunity'}`,
+        points: Math.floor(c.hours * 10),
+        date: c.updatedAt || c.createdAt
+      })),
+      ...donations.map(d => ({
+        type: 'donation',
+        icon: '🤝',
+        label: `LKR ${d.amount.toLocaleString()} donated`,
+        points: Math.floor(d.amount / 100),
+        date: d.updatedAt || d.createdAt
+      })),
+      ...completedApps.map(a => ({
+        type: 'completion',
+        icon: '🎖️',
+        label: `${a.volunteer?.name || 'Volunteer'} completed — ${a.opportunity?.title || 'Opportunity'}`,
+        points: 100,
+        date: a.updatedAt || a.createdAt
+      }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { getMyPoints, getLeaderboard, getMyPointsHistory };

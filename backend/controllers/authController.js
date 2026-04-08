@@ -15,6 +15,7 @@ const validatePassword = (password) => {
 const register = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
+    const profileImage = req.file ? req.file.path : '';
 
     const pwError = validatePassword(password);
     if (pwError) return res.status(400).json({ message: pwError });
@@ -43,7 +44,8 @@ const register = async (req, res) => {
       email,
       password: hashedPassword,
       phone: phone || '',
-      role: 'volunteer'
+      role: 'volunteer',
+      profileImage
     });
 
     // Generate token
@@ -61,7 +63,8 @@ const register = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        profileImage: user.profileImage
       }
     });
   } catch (error) {
@@ -101,7 +104,8 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        profileImage: user.profileImage
       }
     });
   } catch (error) {
@@ -123,9 +127,12 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { name, phone } = req.body;
+    const updateData = { name, phone };
+    if (req.file) updateData.profileImage = req.file.path;
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, phone },
+      updateData,
       { new: true }
     ).select('-password');
     res.status(200).json({

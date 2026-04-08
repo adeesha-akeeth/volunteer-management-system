@@ -1,6 +1,7 @@
 const Vote = require('../models/Vote');
 const Comment = require('../models/Comment');
 const Opportunity = require('../models/Opportunity');
+const Notification = require('../models/Notification');
 
 const toggleVote = async (req, res) => {
   try {
@@ -18,6 +19,25 @@ const toggleVote = async (req, res) => {
       }
     } else {
       await Vote.create({ user: req.user.id, targetId, targetType, vote });
+    }
+
+    // Notify comment author on new like
+    const isNewLike = !existing && vote === 'like';
+    const isSwitchToLike = existing && existing.vote !== 'like' && vote === 'like';
+    if ((isNewLike || isSwitchToLike) && targetType === 'comment') {
+      try {
+        const comment = await Comment.findById(targetId).select('author opportunity');
+        if (comment && comment.author.toString() !== req.user.id) {
+          const opp = await Opportunity.findById(comment.opportunity).select('title');
+          await Notification.create({
+            recipient: comment.author,
+            type: 'comment_like',
+            message: `Someone liked your comment on "${opp?.title || 'an opportunity'}"`,
+            relatedId: comment.opportunity,
+            relatedType: 'opportunity'
+          });
+        }
+      } catch {}
     }
 
     const [likes, dislikes] = await Promise.all([

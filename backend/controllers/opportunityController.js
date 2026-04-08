@@ -4,6 +4,9 @@ const Donation = require('../models/Donation');
 const Comment = require('../models/Comment');
 const Vote = require('../models/Vote');
 const Application = require('../models/Application');
+const Follow = require('../models/Follow');
+const Notification = require('../models/Notification');
+const User = require('../models/User');
 
 // Create a new opportunity
 const createOpportunity = async (req, res) => {
@@ -31,6 +34,22 @@ const createOpportunity = async (req, res) => {
       bannerImage,
       createdBy: req.user.id
     });
+
+    // Notify followers
+    try {
+      const creator = await User.findById(req.user.id).select('name');
+      const followers = await Follow.find({ following: req.user.id }).select('follower');
+      if (followers.length > 0 && creator) {
+        const notifications = followers.map(f => ({
+          recipient: f.follower,
+          type: 'follow_new_opportunity',
+          message: `${creator.name} posted a new opportunity: "${title}"`,
+          relatedId: opportunity._id,
+          relatedType: 'opportunity'
+        }));
+        await Notification.insertMany(notifications);
+      }
+    } catch {}
 
     res.status(201).json({ message: 'Opportunity created successfully', opportunity });
   } catch (error) {
@@ -118,11 +137,10 @@ const getOpportunities = async (req, res) => {
     if (search) filter.title = { $regex: search, $options: 'i' };
     if (category) filter.category = category;
 
-    // For latest (default) sort by DB; for others we sort after attachExtras
-    const dbSort = (sort === 'popular' || sort === 'toprated') ? { createdAt: -1 } : { createdAt: -1 };
+    const dbSort = { createdAt: -1 };
 
     const opportunities = await Opportunity.find(filter)
-      .populate('createdBy', 'name email _id')
+      .populate('createdBy', 'name email _id profileImage')
       .sort(dbSort);
 
     const userId = req.user?.id || null;
@@ -144,7 +162,7 @@ const getOpportunities = async (req, res) => {
 const getOpportunityById = async (req, res) => {
   try {
     const opportunity = await Opportunity.findById(req.params.id)
-      .populate('createdBy', 'name email _id');
+      .populate('createdBy', 'name email _id profileImage');
 
     if (!opportunity) return res.status(404).json({ message: 'Opportunity not found' });
 
@@ -189,7 +207,7 @@ const updateOpportunity = async (req, res) => {
 const getMyOpportunities = async (req, res) => {
   try {
     const opportunities = await Opportunity.find({ createdBy: req.user.id })
-      .populate('createdBy', 'name email _id')
+      .populate('createdBy', 'name email _id profileImage')
       .sort({ createdAt: -1 });
     const result = await attachExtras(opportunities, req.user.id);
     res.status(200).json(result);

@@ -141,11 +141,29 @@ const getMyCompletedOpportunities = async (req, res) => {
   }
 };
 
+// Creator gets all pending contributions across all their opportunities
+const getAllContributionsForCreator = async (req, res) => {
+  try {
+    const myOpps = await Opportunity.find({ createdBy: req.user.id }, '_id title');
+    const myOppIds = myOpps.map(o => o._id);
+
+    const contributions = await Contribution.find({ opportunity: { $in: myOppIds } })
+      .populate('volunteer', 'name email')
+      .populate('opportunity', 'title')
+      .sort({ status: 1, createdAt: -1 });
+
+    res.json(contributions);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   submitContribution,
   getMyContributions,
   getMyApprovedOpportunities,
   getMyCompletedOpportunities,
   getContributionsForOpportunity,
-  updateContributionStatus
+  updateContributionStatus,
+  getAllContributionsForCreator
 };

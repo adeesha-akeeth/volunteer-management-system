@@ -78,6 +78,12 @@ app.use('/api/points', pointsRoutes);
 const notificationRoutes = require('./routes/notificationRoutes');
 app.use('/api/notifications', notificationRoutes);
 
+const publisherRoutes = require('./routes/publisherRoutes');
+app.use('/api/publisher', publisherRoutes);
+
+const followRoutes = require('./routes/followRoutes');
+app.use('/api/follows', followRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

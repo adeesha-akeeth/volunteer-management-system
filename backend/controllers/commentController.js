@@ -1,11 +1,13 @@
 const Comment = require('../models/Comment');
 const Vote = require('../models/Vote');
+const Notification = require('../models/Notification');
+const Opportunity = require('../models/Opportunity');
 
 const getComments = async (req, res) => {
   try {
     const { opportunityId } = req.params;
     const allComments = await Comment.find({ opportunity: opportunityId })
-      .populate('author', 'name')
+      .populate('author', 'name profileImage')
       .sort({ createdAt: 1 });
 
     const commentIds = allComments.map(c => c._id);
@@ -61,7 +63,25 @@ const addComment = async (req, res) => {
       photo,
       rating: rating ? Number(rating) : null
     });
-    const populated = await Comment.findById(comment._id).populate('author', 'name');
+    const populated = await Comment.findById(comment._id).populate('author', 'name profileImage');
+
+    // Notify parent comment author on reply
+    if (parentCommentId) {
+      try {
+        const parentComment = await Comment.findById(parentCommentId).select('author opportunity');
+        if (parentComment && parentComment.author.toString() !== req.user.id) {
+          const opp = await Opportunity.findById(parentComment.opportunity).select('title');
+          await Notification.create({
+            recipient: parentComment.author,
+            type: 'comment_reply',
+            message: `Someone replied to your comment on "${opp?.title || 'an opportunity'}"`,
+            relatedId: parentComment.opportunity,
+            relatedType: 'opportunity'
+          });
+        }
+      } catch {}
+    }
+
     res.status(201).json({ ...populated.toObject(), likes: 0, dislikes: 0, userVote: null, replies: [] });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -81,7 +101,7 @@ const editComment = async (req, res) => {
     comment.isUpdated = true;
     await comment.save();
 
-    const populated = await Comment.findById(comment._id).populate('author', 'name');
+    const populated = await Comment.findById(comment._id).populate('author', 'name profileImage');
     res.json(populated);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
