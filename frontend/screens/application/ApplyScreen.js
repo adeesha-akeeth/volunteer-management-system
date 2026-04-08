@@ -60,9 +60,11 @@ const ApplyScreen = ({ route, navigation }) => {
           coverLetter
         });
       }
-      Alert.alert('Success', 'Application submitted successfully!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      Alert.alert(
+        'Application Submitted!',
+        'Your application is under review. Thank you for applying.\n\nView your status under Profile → My Applications.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to apply');
     } finally {

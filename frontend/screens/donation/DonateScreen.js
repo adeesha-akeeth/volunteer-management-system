@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image,
+  KeyboardAvoidingView, Platform, SafeAreaView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
+import { AuthContext } from '../../context/AuthContext';
 
 const DonateScreen = ({ route, navigation }) => {
   const { fundraiserId, fundraiserName, opportunityTitle } = route.params;
+  const { user } = useContext(AuthContext);
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
-  const [donorName, setDonorName] = useState('');
-  const [donorPhone, setDonorPhone] = useState('');
+  const [donorName, setDonorName] = useState(user?.name || '');
+  const [donorPhone, setDonorPhone] = useState(user?.phone || '');
   const [receiptImage, setReceiptImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,47 +56,51 @@ const DonateScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.headerCard}>
-        <Text style={styles.headerLabel}>Fundraiser</Text>
-        <Text style={styles.headerFundraiser}>{fundraiserName}</Text>
-        <Text style={styles.headerOpp}>{opportunityTitle}</Text>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#27ae60' }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView style={styles.container}>
+          <View style={styles.headerCard}>
+            <Text style={styles.headerLabel}>Fundraiser</Text>
+            <Text style={styles.headerFundraiser}>{fundraiserName}</Text>
+            <Text style={styles.headerOpp}>{opportunityTitle}</Text>
+          </View>
 
-      <View style={styles.form}>
-        <Text style={styles.sectionTitle}>Your Donation</Text>
+          <View style={styles.form}>
+            <Text style={styles.sectionTitle}>Your Donation</Text>
 
-        <Text style={styles.label}>Amount (LKR) *</Text>
-        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Enter amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+            <Text style={styles.label}>Amount (LKR) *</Text>
+            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Enter amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
 
-        <Text style={styles.label}>Your Name</Text>
-        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Full name (optional)" value={donorName} onChangeText={setDonorName} />
+            <Text style={styles.label}>Your Name</Text>
+            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Full name (optional)" value={donorName} onChangeText={setDonorName} />
 
-        <Text style={styles.label}>Phone Number</Text>
-        <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Contact number (optional)" value={donorPhone} onChangeText={setDonorPhone} keyboardType="phone-pad" />
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Contact number (optional)" value={donorPhone} onChangeText={setDonorPhone} keyboardType="phone-pad" />
 
-        <Text style={styles.label}>Message (optional)</Text>
-        <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Leave a message of support..." value={message} onChangeText={setMessage} multiline numberOfLines={3} />
+            <Text style={styles.label}>Message (optional)</Text>
+            <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Leave a message of support..." value={message} onChangeText={setMessage} multiline numberOfLines={3} />
 
-        <Text style={styles.label}>Bank Receipt Photo</Text>
-        <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
-          <Text style={styles.imagePickerText}>{receiptImage ? '✅ Receipt Selected — tap to change' : '📷 Upload Bank Receipt Photo'}</Text>
-        </TouchableOpacity>
-        {receiptImage && <Image source={{ uri: receiptImage.uri }} style={styles.previewImage} resizeMode="cover" />}
+            <Text style={styles.label}>Bank Receipt Photo</Text>
+            <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
+              <Text style={styles.imagePickerText}>{receiptImage ? '✅ Receipt Selected — tap to change' : '📷 Upload Bank Receipt Photo'}</Text>
+            </TouchableOpacity>
+            {receiptImage && <Image source={{ uri: receiptImage.uri }} style={styles.previewImage} resizeMode="cover" />}
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoText}>Your donation will be marked as pending until the organizer reviews your receipt. You can edit or delete it while it's pending.</Text>
-        </View>
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>Your donation will be marked as pending until the organizer reviews your receipt. You can edit or delete it while it's pending.</Text>
+            </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Donation</Text>}
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit Donation</Text>}
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 

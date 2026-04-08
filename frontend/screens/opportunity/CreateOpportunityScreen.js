@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Switch, Platform
+  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,9 +23,6 @@ const CreateOpportunityScreen = ({ navigation }) => {
   const [responsibleEmail, setResponsibleEmail] = useState('');
   const [responsiblePhone, setResponsiblePhone] = useState('');
   const [bannerImage, setBannerImage] = useState(null);
-  const [fundraiserEnabled, setFundraiserEnabled] = useState(false);
-  const [fundraiserName, setFundraiserName] = useState('');
-  const [fundraiserTarget, setFundraiserTarget] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Date picker state
@@ -67,12 +65,6 @@ const CreateOpportunityScreen = ({ navigation }) => {
       Alert.alert('Invalid Dates', 'End date must be after start date');
       return;
     }
-    if (fundraiserEnabled) {
-      if (!fundraiserName) { Alert.alert('Missing Field', 'Please enter a fundraiser name'); return; }
-      if (!fundraiserTarget || isNaN(fundraiserTarget) || Number(fundraiserTarget) < 1) {
-        Alert.alert('Invalid Amount', 'Please enter a valid fundraising target amount'); return;
-      }
-    }
 
     setLoading(true);
     try {
@@ -82,27 +74,15 @@ const CreateOpportunityScreen = ({ navigation }) => {
         responsibleName, responsibleEmail, responsiblePhone
       };
 
-      let createdOpp;
       if (bannerImage) {
         const formData = new FormData();
         Object.entries(payload).forEach(([k, v]) => formData.append(k, v));
         const filename = bannerImage.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
         formData.append('bannerImage', { uri: bannerImage.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
-        const res = await api.post('/api/opportunities', formData);
-        createdOpp = res.data.opportunity;
+        await api.post('/api/opportunities', formData);
       } else {
-        const res = await api.post('/api/opportunities', payload);
-        createdOpp = res.data.opportunity;
-      }
-
-      // Create fundraiser if enabled
-      if (fundraiserEnabled && createdOpp) {
-        await api.post('/api/fundraisers', {
-          opportunityId: createdOpp._id,
-          name: fundraiserName || title,
-          targetAmount: fundraiserTarget
-        });
+        await api.post('/api/opportunities', payload);
       }
 
       Alert.alert('Success', 'Opportunity created successfully!', [
@@ -116,6 +96,7 @@ const CreateOpportunityScreen = ({ navigation }) => {
   };
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
     <ScrollView style={styles.container}>
       <Text style={styles.heading}>Post New Opportunity</Text>
 
@@ -149,10 +130,10 @@ const CreateOpportunityScreen = ({ navigation }) => {
 
       <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Spots Available *" value={spotsAvailable} onChangeText={setSpotsAvailable} keyboardType="numeric" />
 
-      <Text style={styles.label}>Responsible Person</Text>
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Name" value={responsibleName} onChangeText={setResponsibleName} />
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Email" value={responsibleEmail} onChangeText={setResponsibleEmail} keyboardType="email-address" autoCapitalize="none" />
-      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Phone" value={responsiblePhone} onChangeText={setResponsiblePhone} keyboardType="phone-pad" />
+      <Text style={styles.label}>Contact Info (optional)</Text>
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Contact Name" value={responsibleName} onChangeText={setResponsibleName} />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Contact Email" value={responsibleEmail} onChangeText={setResponsibleEmail} keyboardType="email-address" autoCapitalize="none" />
+      <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Contact Phone" value={responsiblePhone} onChangeText={setResponsiblePhone} keyboardType="phone-pad" />
 
       <Text style={styles.label}>Category</Text>
       <View style={styles.categoryContainer}>
@@ -161,23 +142,6 @@ const CreateOpportunityScreen = ({ navigation }) => {
             <Text style={[styles.categoryText, category === cat && styles.categoryTextActive]}>{cat}</Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      {/* Fundraiser section */}
-      <View style={styles.fundraiserSection}>
-        <View style={styles.switchRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.switchLabel}>Add a Fundraiser</Text>
-            <Text style={styles.switchSub}>Allow people to donate to this opportunity</Text>
-          </View>
-          <Switch value={fundraiserEnabled} onValueChange={setFundraiserEnabled} trackColor={{ false: '#ccc', true: '#27ae60' }} thumbColor="#fff" />
-        </View>
-        {fundraiserEnabled && (
-          <>
-            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Fundraiser Name *  (e.g. 'Tree Planting Fund')" value={fundraiserName} onChangeText={setFundraiserName} />
-            <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Target Amount (LKR) *" value={fundraiserTarget} onChangeText={setFundraiserTarget} keyboardType="numeric" />
-          </>
-        )}
       </View>
 
       <Text style={styles.label}>Banner Image (optional)</Text>
@@ -194,6 +158,7 @@ const CreateOpportunityScreen = ({ navigation }) => {
         <Text style={styles.cancelButtonText}>Cancel</Text>
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -212,10 +177,6 @@ const styles = StyleSheet.create({
   categoryButtonActive: { backgroundColor: '#2e86de' },
   categoryText: { color: '#2e86de', fontWeight: 'bold', fontSize: 13 },
   categoryTextActive: { color: '#fff' },
-  fundraiserSection: { backgroundColor: '#f0fff4', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#27ae60' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  switchLabel: { fontSize: 15, fontWeight: 'bold', color: '#333' },
-  switchSub: { fontSize: 12, color: '#888', marginTop: 2 },
   imagePickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#2e86de', borderStyle: 'dashed', borderRadius: 10, padding: 20, alignItems: 'center', marginBottom: 15 },
   imagePickerText: { color: '#2e86de', fontWeight: 'bold', fontSize: 15 },
   previewImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 15 },

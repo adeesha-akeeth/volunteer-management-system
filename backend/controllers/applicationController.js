@@ -1,5 +1,6 @@
 const Application = require('../models/Application');
 const Opportunity = require('../models/Opportunity');
+const Notification = require('../models/Notification');
 
 // Apply to an opportunity
 const applyToOpportunity = async (req, res) => {
@@ -43,6 +44,16 @@ const applyToOpportunity = async (req, res) => {
       email,
       photo
     });
+
+    // Notify the opportunity creator
+    try {
+      await Notification.create({
+        recipient: opportunity.createdBy,
+        type: 'new_application',
+        message: `Someone applied to "${opportunity.title}"`,
+        relatedId: opportunity._id
+      });
+    } catch {}
 
     res.status(201).json({
       message: 'Application submitted successfully',
@@ -105,6 +116,41 @@ const updateApplicationStatus = async (req, res) => {
     application.status = status;
     await application.save();
 
+    // Auto-close opportunity when all slots filled
+    if (status === 'approved') {
+      try {
+        const opp = await Opportunity.findById(application.opportunity);
+        if (opp && opp.status === 'open') {
+          const approvedCount = await Application.countDocuments({
+            opportunity: opp._id,
+            status: { $in: ['approved', 'completed'] }
+          });
+          if (approvedCount >= opp.spotsAvailable) {
+            opp.status = 'closed';
+            await opp.save();
+          }
+        }
+      } catch {}
+    }
+
+    // Notify the volunteer
+    try {
+      const opp = await Opportunity.findById(application.opportunity).select('title');
+      const msgs = {
+        approved: `Your application for "${opp?.title}" has been approved!`,
+        rejected: `Your application for "${opp?.title}" was not selected.`,
+        completed: `Your volunteering for "${opp?.title}" has been marked as completed.`
+      };
+      if (msgs[status]) {
+        await Notification.create({
+          recipient: application.volunteer,
+          type: 'application_status',
+          message: msgs[status],
+          relatedId: application.opportunity
+        });
+      }
+    } catch {}
+
     res.status(200).json({
       message: `Application ${status} successfully`,
       application
@@ -135,10 +181,43 @@ const deleteApplication = async (req, res) => {
   }
 };
 
+// Creator removes an accepted volunteer (revoke = set status to rejected)
+const revokeAcceptedVolunteer = async (req, res) => {
+  try {
+    const application = await Application.findById(req.params.id)
+      .populate('opportunity', 'createdBy title');
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+    if (application.opportunity.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    if (!['approved', 'completed'].includes(application.status)) {
+      return res.status(400).json({ message: 'Can only remove accepted volunteers' });
+    }
+
+    application.status = 'rejected';
+    await application.save();
+
+    // Notify the volunteer
+    try {
+      await Notification.create({
+        recipient: application.volunteer,
+        type: 'application_status',
+        message: `Your participation in "${application.opportunity.title}" has been revoked by the organizer.`,
+        relatedId: application.opportunity._id
+      });
+    } catch {}
+
+    res.json({ message: 'Volunteer removed from opportunity', application });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   applyToOpportunity,
   getMyApplications,
   getApplicationsForOpportunity,
   updateApplicationStatus,
+  revokeAcceptedVolunteer,
   deleteApplication
 };

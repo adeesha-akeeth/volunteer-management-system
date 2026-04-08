@@ -2,17 +2,22 @@ const mongoose = require('mongoose');
 const Contribution = require('../models/Contribution');
 const Donation = require('../models/Donation');
 const Opportunity = require('../models/Opportunity');
+const Application = require('../models/Application');
 const User = require('../models/User');
 
 // Points rules:
-// - 10 pts per verified hour contributed
+// - 10 pts per verified contribution hour
 // - 1 pt per LKR 100 donated (confirmed)
-// - 50 pts per opportunity created
+// - 100 pts per volunteer you accepted who reaches 'completed' status
 
 const computePointsForUser = async (userId) => {
   const uid = new mongoose.Types.ObjectId(userId);
 
-  const [contribAgg, donationAgg, oppCount] = await Promise.all([
+  // Opportunities created by this user
+  const myOpps = await Opportunity.find({ createdBy: uid }, '_id');
+  const myOppIds = myOpps.map(o => o._id);
+
+  const [contribAgg, donationAgg, completedCount] = await Promise.all([
     Contribution.aggregate([
       { $match: { volunteer: uid, status: 'verified' } },
       { $group: { _id: null, totalHours: { $sum: '$hours' } } }
@@ -21,7 +26,10 @@ const computePointsForUser = async (userId) => {
       { $match: { donor: uid, status: 'confirmed' } },
       { $group: { _id: null, totalAmount: { $sum: '$amount' } } }
     ]),
-    Opportunity.countDocuments({ createdBy: userId })
+    Application.countDocuments({
+      opportunity: { $in: myOppIds },
+      status: 'completed'
+    })
   ]);
 
   const totalHours = contribAgg[0]?.totalHours || 0;
@@ -29,10 +37,15 @@ const computePointsForUser = async (userId) => {
 
   const hoursPoints = Math.floor(totalHours * 10);
   const donationPoints = Math.floor(totalDonated / 100);
-  const opportunityPoints = oppCount * 50;
-  const total = hoursPoints + donationPoints + opportunityPoints;
+  const completionPoints = completedCount * 100;
+  const total = hoursPoints + donationPoints + completionPoints;
 
-  return { total, hoursPoints, donationPoints, opportunityPoints, totalHours, totalDonated, opportunitiesCreated: oppCount };
+  return {
+    total, hoursPoints, donationPoints, completionPoints,
+    totalHours, totalDonated,
+    opportunitiesCreated: myOpps.length,
+    completedVolunteers: completedCount
+  };
 };
 
 const getMyPoints = async (req, res) => {
@@ -46,23 +59,42 @@ const getMyPoints = async (req, res) => {
 
 const getLeaderboard = async (req, res) => {
   try {
-    // Aggregate points across all users
-    const [contribAgg, donationAgg, oppAgg] = await Promise.all([
-      Contribution.aggregate([
-        { $match: { status: 'verified' } },
-        { $group: { _id: '$volunteer', totalHours: { $sum: '$hours' } } }
-      ]),
-      Donation.aggregate([
-        { $match: { status: 'confirmed' } },
-        { $group: { _id: '$donor', totalAmount: { $sum: '$amount' } } }
-      ]),
-      Opportunity.aggregate([
-        { $group: { _id: '$createdBy', count: { $sum: 1 } } }
-      ])
+    // Get all users
+    const allUsers = await User.find({}, '_id');
+    const allIds = allUsers.map(u => u._id);
+
+    // Aggregate contribution hours
+    const contribAgg = await Contribution.aggregate([
+      { $match: { status: 'verified' } },
+      { $group: { _id: '$volunteer', totalHours: { $sum: '$hours' } } }
     ]);
 
-    const pointsMap = {};
+    // Aggregate donations
+    const donationAgg = await Donation.aggregate([
+      { $match: { status: 'confirmed' } },
+      { $group: { _id: '$donor', totalAmount: { $sum: '$amount' } } }
+    ]);
 
+    // Aggregate completed volunteers per creator
+    const oppsByCreator = await Opportunity.aggregate([
+      { $group: { _id: '$createdBy', oppIds: { $push: '$_id' } } }
+    ]);
+    const creatorOppMap = {};
+    oppsByCreator.forEach(o => { creatorOppMap[o._id.toString()] = o.oppIds; });
+
+    const completedByCreator = {};
+    if (oppsByCreator.length > 0) {
+      const allOppIds = oppsByCreator.flatMap(o => o.oppIds);
+      const completedApps = await Application.aggregate([
+        { $match: { status: 'completed', opportunity: { $in: allOppIds } } },
+        { $lookup: { from: 'opportunities', localField: 'opportunity', foreignField: '_id', as: 'opp' } },
+        { $unwind: '$opp' },
+        { $group: { _id: '$opp.createdBy', count: { $sum: 1 } } }
+      ]);
+      completedApps.forEach(c => { completedByCreator[c._id.toString()] = c.count; });
+    }
+
+    const pointsMap = {};
     const ensure = (id) => { if (!pointsMap[id]) pointsMap[id] = 0; };
 
     contribAgg.forEach(c => {
@@ -73,16 +105,15 @@ const getLeaderboard = async (req, res) => {
       const id = d._id?.toString(); if (!id) return;
       ensure(id); pointsMap[id] += Math.floor((d.totalAmount || 0) / 100);
     });
-    oppAgg.forEach(o => {
-      const id = o._id?.toString(); if (!id) return;
-      ensure(id); pointsMap[id] += (o.count || 0) * 50;
+    Object.entries(completedByCreator).forEach(([id, count]) => {
+      ensure(id); pointsMap[id] += count * 100;
     });
 
     // Include current user even if they have 0 points
     if (!pointsMap[req.user.id]) pointsMap[req.user.id] = 0;
 
-    const allIds = Object.keys(pointsMap);
-    const users = await User.find({ _id: { $in: allIds } }).select('name');
+    const allUserIds = Object.keys(pointsMap);
+    const users = await User.find({ _id: { $in: allUserIds } }).select('name');
     const userMap = {};
     users.forEach(u => { userMap[u._id.toString()] = u.name; });
 

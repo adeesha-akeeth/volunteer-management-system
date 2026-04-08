@@ -31,6 +31,13 @@ import ProfileScreen from './screens/profile/ProfileScreen';
 // Impact Screens (replaces Certificates)
 import ImpactScreen from './screens/impact/ImpactScreen';
 import OngoingOpportunitiesScreen from './screens/impact/OngoingOpportunitiesScreen';
+import PastVolunteeringScreen from './screens/impact/PastVolunteeringScreen';
+
+// Profile Extra Screens
+import MyLikesCommentsScreen from './screens/profile/MyLikesCommentsScreen';
+
+// Notifications Screen
+import NotificationsScreen from './screens/notifications/NotificationsScreen';
 
 // Donation Screens
 import MyDonationsScreen from './screens/donation/MyDonationsScreen';
@@ -74,6 +81,7 @@ const ImpactStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="ImpactMain" component={ImpactScreen} options={{ title: 'My Impact' }} />
     <Stack.Screen name="OngoingOpportunities" component={OngoingOpportunitiesScreen} options={{ title: 'Active Volunteering' }} />
+    <Stack.Screen name="PastVolunteering" component={PastVolunteeringScreen} options={{ title: 'Past Volunteering' }} />
   </Stack.Navigator>
 );
 
@@ -95,6 +103,7 @@ const HomeStack = () => (
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
   </Stack.Navigator>
 );
 
@@ -116,6 +125,7 @@ const ProfileStack = () => (
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
     <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
+    <Stack.Screen name="MyLikesComments" component={MyLikesCommentsScreen} options={{ title: 'My Likes & Comments' }} />
   </Stack.Navigator>
 );
 

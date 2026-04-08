@@ -50,16 +50,39 @@ const getComments = async (req, res) => {
 
 const addComment = async (req, res) => {
   try {
-    const { opportunityId, text, parentCommentId } = req.body;
+    const { opportunityId, text, parentCommentId, rating } = req.body;
     if (!text || !text.trim()) return res.status(400).json({ message: 'Comment text required' });
+    const photo = req.file ? req.file.path : '';
     const comment = await Comment.create({
       opportunity: opportunityId,
       author: req.user.id,
       text: text.trim(),
-      parentComment: parentCommentId || null
+      parentComment: parentCommentId || null,
+      photo,
+      rating: rating ? Number(rating) : null
     });
     const populated = await Comment.findById(comment._id).populate('author', 'name');
     res.status(201).json({ ...populated.toObject(), likes: 0, dislikes: 0, userVote: null, replies: [] });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const editComment = async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+    if (comment.author.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+
+    const { text, rating } = req.body;
+    if (text) { comment.text = text.trim(); }
+    if (rating !== undefined) comment.rating = rating ? Number(rating) : null;
+    if (req.file) comment.photo = req.file.path;
+    comment.isUpdated = true;
+    await comment.save();
+
+    const populated = await Comment.findById(comment._id).populate('author', 'name');
+    res.json(populated);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -78,4 +101,4 @@ const deleteComment = async (req, res) => {
   }
 };
 
-module.exports = { getComments, addComment, deleteComment };
+module.exports = { getComments, addComment, editComment, deleteComment };

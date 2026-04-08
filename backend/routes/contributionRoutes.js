@@ -5,6 +5,7 @@ const {
   submitContribution,
   getMyContributions,
   getMyApprovedOpportunities,
+  getMyCompletedOpportunities,
   getContributionsForOpportunity,
   updateContributionStatus
 } = require('../controllers/contributionController');
@@ -12,6 +13,7 @@ const {
 router.post('/', protect, submitContribution);
 router.get('/my', protect, getMyContributions);
 router.get('/my-opportunities', protect, getMyApprovedOpportunities);
+router.get('/my-past', protect, getMyCompletedOpportunities);
 router.get('/opportunity/:opportunityId', protect, getContributionsForOpportunity);
 router.put('/:id/status', protect, updateContributionStatus);
 

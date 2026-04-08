@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, TextInput, ActivityIndicator,
@@ -22,11 +23,13 @@ const CATEGORIES = [
 
 const OpportunityListScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('home');
-  const [opportunities, setOpportunities] = useState([]);
+  const [allOpportunities, setAllOpportunities] = useState([]); // full list from API
+  const [opportunities, setOpportunities] = useState([]);       // filtered list
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user, logout } = useContext(AuthContext);
 
   // Favourites modal
@@ -35,61 +38,134 @@ const OpportunityListScreen = ({ navigation }) => {
   const [pendingFavOpp, setPendingFavOpp] = useState(null);
   const [favLoading, setFavLoading] = useState(false);
 
-  const fetchOpportunities = useCallback(async (searchTerm = '', category = '', tab = 'home') => {
+  const applyLocalFilter = useCallback((all, searchTerm, category) => {
+    let filtered = all;
+    if (category) filtered = filtered.filter(o => o.category === category);
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      filtered = filtered.filter(o => o.title?.toLowerCase().includes(lower) || o.organization?.toLowerCase().includes(lower));
+    }
+    return filtered;
+  }, []);
+
+  const fetchOpportunities = useCallback(async (tab = 'home', searchTerm = '', category = '') => {
     try {
       const sort = tab === 'popular' ? 'popular' : tab === 'toprated' ? 'toprated' : '';
       let url = `/api/opportunities?`;
-      if (searchTerm) url += `search=${encodeURIComponent(searchTerm)}&`;
-      if (category) url += `category=${category}&`;
       if (sort) url += `sort=${sort}`;
       const response = await api.get(url);
-      setOpportunities(response.data);
+      setAllOpportunities(response.data);
+      setOpportunities(applyLocalFilter(response.data, searchTerm, category));
     } catch {
       Alert.alert('Error', 'Failed to load opportunities');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [applyLocalFilter]);
+
+  const isMounted = useRef(false);
 
   useEffect(() => {
     setLoading(true);
-    fetchOpportunities(search, selectedCategory, activeTab);
+    fetchOpportunities(activeTab, search, selectedCategory);
   }, [activeTab]);
+
+  // Auto-refresh when screen comes back into focus (e.g. after creating opportunity)
+  useFocusEffect(
+    useCallback(() => {
+      if (isMounted.current) {
+        fetchOpportunities(activeTab, search, selectedCategory);
+      } else {
+        isMounted.current = true;
+      }
+    }, [activeTab])
+  );
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await api.get('/api/notifications');
+        setUnreadCount(res.data.unreadCount || 0);
+      } catch {}
+    };
+    fetchUnread();
+  }, []);
 
   const handleSearch = (text) => {
     setSearch(text);
-    fetchOpportunities(text, selectedCategory, activeTab);
+    setOpportunities(applyLocalFilter(allOpportunities, text, selectedCategory));
   };
 
   const handleCategory = (cat) => {
     setSelectedCategory(cat);
-    fetchOpportunities(search, cat, activeTab);
+    setOpportunities(applyLocalFilter(allOpportunities, search, cat));
   };
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchOpportunities(search, selectedCategory, activeTab);
+    fetchOpportunities(activeTab, search, selectedCategory);
   };
 
   const handleTabChange = (tab) => {
     if (tab === activeTab) return;
     setSearch('');
     setSelectedCategory('');
+    setAllOpportunities([]);
     setOpportunities([]);
     setLoading(true);
     setActiveTab(tab);
   };
 
   const handleVote = async (item, vote) => {
+    // Optimistic update
+    const prevVote = item.userVote;
+    let newLikes = item.likes || 0;
+    let newDislikes = item.dislikes || 0;
+    let newUserVote = vote;
+
+    if (prevVote === vote) {
+      // toggle off
+      if (vote === 'like') newLikes = Math.max(0, newLikes - 1);
+      else newDislikes = Math.max(0, newDislikes - 1);
+      newUserVote = null;
+    } else {
+      if (prevVote === 'like') newLikes = Math.max(0, newLikes - 1);
+      else if (prevVote === 'dislike') newDislikes = Math.max(0, newDislikes - 1);
+      if (vote === 'like') newLikes += 1;
+      else newDislikes += 1;
+    }
+
+    const updateFn = (prev) => prev.map(o => o._id === item._id
+      ? { ...o, likes: newLikes, dislikes: newDislikes, userVote: newUserVote }
+      : o
+    );
+    setOpportunities(updateFn);
+    setAllOpportunities(prev => prev.map(o => o._id === item._id
+      ? { ...o, likes: newLikes, dislikes: newDislikes, userVote: newUserVote }
+      : o
+    ));
+
     try {
       const res = await api.post('/api/votes', { targetId: item._id, targetType: 'opportunity', vote });
       setOpportunities(prev => prev.map(o => o._id === item._id
         ? { ...o, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote }
         : o
       ));
+      setAllOpportunities(prev => prev.map(o => o._id === item._id
+        ? { ...o, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote }
+        : o
+      ));
     } catch {
-      Alert.alert('Error', 'Failed to vote');
+      // Revert on error
+      setOpportunities(prev => prev.map(o => o._id === item._id
+        ? { ...o, likes: item.likes, dislikes: item.dislikes, userVote: item.userVote }
+        : o
+      ));
+      setAllOpportunities(prev => prev.map(o => o._id === item._id
+        ? { ...o, likes: item.likes, dislikes: item.dislikes, userVote: item.userVote }
+        : o
+      ));
     }
   };
 
@@ -248,10 +324,18 @@ const OpportunityListScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.welcomeText}>Hello, {user?.name}! 👋</Text>
           <Text style={styles.headerSubtitle}>Find your next volunteer opportunity</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.bellButton}>
+          <Ionicons name="notifications-outline" size={24} color="#555" />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity onPress={logout} style={styles.logoutButton}>
           <Ionicons name="log-out-outline" size={24} color="#e74c3c" />
         </TouchableOpacity>
@@ -359,6 +443,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   welcomeText: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   headerSubtitle: { fontSize: 13, color: '#888', marginTop: 2 },
+  bellButton: { padding: 5, marginRight: 4, position: 'relative' },
+  badge: { position: 'absolute', top: 0, right: 0, backgroundColor: '#e74c3c', borderRadius: 9, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   logoutButton: { padding: 5 },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ddd', elevation: 1 },
   searchIcon: { marginRight: 8 },

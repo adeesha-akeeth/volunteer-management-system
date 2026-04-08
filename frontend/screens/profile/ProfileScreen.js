@@ -34,13 +34,23 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  const validatePassword = (pw) => {
+    if (pw.length < 8) return 'At least 8 characters';
+    if (!/[A-Z]/.test(pw)) return 'At least 1 uppercase letter';
+    if (!/[a-z]/.test(pw)) return 'At least 1 lowercase letter';
+    if (!/[0-9]/.test(pw)) return 'At least 1 number';
+    if (!/[^A-Za-z0-9]/.test(pw)) return 'At least 1 symbol';
+    return null;
+  };
+
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) {
       Alert.alert('Error', 'Please fill in both password fields');
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert('Error', 'New password must be at least 6 characters');
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) {
+      Alert.alert('Weak Password', pwErr);
       return;
     }
     setPasswordLoading(true);
@@ -117,7 +127,7 @@ const ProfileScreen = ({ navigation }) => {
 
         <Text style={styles.label}>New Password</Text>
         <View style={styles.passwordContainer}>
-          <TextInput style={styles.passwordInput} placeholder="Minimum 6 characters" placeholderTextColor="#aaa" value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNewPw} />
+          <TextInput style={styles.passwordInput} placeholder="Min 8 chars, 1 upper, 1 lower, 1 num, 1 symbol" placeholderTextColor="#aaa" value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNewPw} />
           <TouchableOpacity style={styles.eyeButton} onPress={() => setShowNewPw(!showNewPw)}>
             <Text style={styles.eyeText}>{showNewPw ? '🙈' : '👁️'}</Text>
           </TouchableOpacity>
@@ -148,12 +158,20 @@ const ProfileScreen = ({ navigation }) => {
           <Text style={styles.navButtonArrow}>→</Text>
         </TouchableOpacity>
         <TouchableOpacity
-  style={styles.navButton}
-  onPress={() => navigation.navigate('FavouritesList')}
->
-  <Text style={styles.navButtonText}>❤️ My Favourites</Text>
-  <Text style={styles.navButtonArrow}>→</Text>
-</TouchableOpacity>
+          style={styles.navButton}
+          onPress={() => navigation.navigate('FavouritesList')}
+        >
+          <Text style={styles.navButtonText}>❤️ My Favourites</Text>
+          <Text style={styles.navButtonArrow}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => navigation.navigate('MyLikesComments')}
+        >
+          <Text style={styles.navButtonText}>👍 My Likes & Comments</Text>
+          <Text style={styles.navButtonArrow}>→</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Logout */}

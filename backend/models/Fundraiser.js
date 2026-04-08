@@ -17,7 +17,7 @@ const fundraiserSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'completed'],
+    enum: ['active', 'completed', 'stopped'],
     default: 'active'
   },
   completedAt: {

@@ -1,6 +1,7 @@
 const Donation = require('../models/Donation');
 const Fundraiser = require('../models/Fundraiser');
 const Opportunity = require('../models/Opportunity');
+const Notification = require('../models/Notification');
 
 // Create a donation linked to a fundraiser
 const createDonation = async (req, res) => {
@@ -10,7 +11,19 @@ const createDonation = async (req, res) => {
     const fundraiser = await Fundraiser.findById(fundraiserId).populate('opportunity');
     if (!fundraiser) return res.status(404).json({ message: 'Fundraiser not found' });
     if (fundraiser.status === 'completed') {
-      return res.status(400).json({ message: 'This fundraiser is already completed' });
+      return res.status(400).json({ message: 'This fundraiser has already reached its goal' });
+    }
+    if (fundraiser.status === 'stopped') {
+      return res.status(400).json({ message: 'This fundraiser has been stopped' });
+    }
+
+    // Check if goal already reached (confirmed donations)
+    const confirmedTotal = await Donation.aggregate([
+      { $match: { fundraiser: fundraiser._id, status: 'confirmed' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    if ((confirmedTotal[0]?.total || 0) >= fundraiser.targetAmount) {
+      return res.status(400).json({ message: 'This fundraiser has already reached its goal' });
     }
 
     const receiptImage = req.file ? req.file.path : '';
@@ -29,6 +42,16 @@ const createDonation = async (req, res) => {
     const populated = await Donation.findById(donation._id)
       .populate('fundraiser', 'name targetAmount status')
       .populate('opportunity', 'title');
+
+    // Notify opportunity creator
+    try {
+      await Notification.create({
+        recipient: fundraiser.opportunity.createdBy,
+        type: 'donation_received',
+        message: `A new donation of LKR ${amount} was received for "${fundraiser.name}"`,
+        relatedId: fundraiser.opportunity._id
+      });
+    } catch {}
 
     res.status(201).json({ message: 'Donation submitted successfully', donation: populated });
   } catch (error) {
@@ -96,6 +119,19 @@ const updateDonationStatus = async (req, res) => {
 
     donation.status = status;
     await donation.save();
+
+    // Notify the donor
+    try {
+      const statusMsg = status === 'confirmed'
+        ? `Your donation to "${donation.fundraiser.name}" has been confirmed. Thank you!`
+        : `Your donation to "${donation.fundraiser.name}" was rejected.`;
+      await Notification.create({
+        recipient: donation.donor,
+        type: 'donation_status',
+        message: statusMsg,
+        relatedId: donation.fundraiser.opportunity._id
+      });
+    } catch {}
 
     // Auto-complete fundraiser if confirmed total >= target
     if (status === 'confirmed') {

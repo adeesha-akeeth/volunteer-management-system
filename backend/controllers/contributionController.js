@@ -1,6 +1,7 @@
 const Contribution = require('../models/Contribution');
 const Application = require('../models/Application');
 const Opportunity = require('../models/Opportunity');
+const Notification = require('../models/Notification');
 
 // Volunteer submits a contribution for an approved application
 const submitContribution = async (req, res) => {
@@ -26,6 +27,19 @@ const submitContribution = async (req, res) => {
       hours: Number(hours),
       description: description || ''
     });
+
+    // Notify the creator
+    try {
+      const opp = await Opportunity.findById(opportunityId).select('title createdBy');
+      if (opp) {
+        await Notification.create({
+          recipient: opp.createdBy,
+          type: 'contribution_received',
+          message: `A volunteer submitted ${hours} hours for "${opp.title}"`,
+          relatedId: opp._id
+        });
+      }
+    } catch {}
 
     res.status(201).json({ message: 'Contribution submitted for verification', contribution });
   } catch (error) {
@@ -105,10 +119,33 @@ const updateContributionStatus = async (req, res) => {
   }
 };
 
+// Volunteer gets their completed opportunities (past volunteering)
+const getMyCompletedOpportunities = async (req, res) => {
+  try {
+    const applications = await Application.find({ volunteer: req.user.id, status: 'completed' })
+      .populate('opportunity', 'title organization location startDate endDate bannerImage category')
+      .sort({ updatedAt: -1 });
+
+    const result = await Promise.all(applications.map(async (app) => {
+      const contributions = await Contribution.find({
+        opportunity: app.opportunity._id,
+        volunteer: req.user.id
+      }).sort({ createdAt: -1 });
+      const verifiedHours = contributions.filter(c => c.status === 'verified').reduce((s, c) => s + c.hours, 0);
+      return { application: app, opportunity: app.opportunity, contributions, verifiedHours };
+    }));
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   submitContribution,
   getMyContributions,
   getMyApprovedOpportunities,
+  getMyCompletedOpportunities,
   getContributionsForOpportunity,
   updateContributionStatus
 };

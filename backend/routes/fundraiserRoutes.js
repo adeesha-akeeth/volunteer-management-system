@@ -6,6 +6,7 @@ const {
   getFundraisersForOpportunity,
   getAllFundraisers,
   completeFundraiser,
+  stopFundraiser,
   getDonorsForFundraiser,
   updateFundraiser
 } = require('../controllers/fundraiserController');
@@ -16,5 +17,6 @@ router.get('/opportunity/:opportunityId', getFundraisersForOpportunity);    // A
 router.get('/:id/donors', getDonorsForFundraiser);                          // Ranked donors for a fundraiser
 router.put('/:id', protect, updateFundraiser);                              // Edit name/target
 router.put('/:id/complete', protect, completeFundraiser);                   // Mark completed
+router.put('/:id/stop', protect, stopFundraiser);                           // Stop fundraiser
 
 module.exports = router;

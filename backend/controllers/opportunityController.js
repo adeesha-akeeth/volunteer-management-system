@@ -1,8 +1,9 @@
 const Opportunity = require('../models/Opportunity');
 const Fundraiser = require('../models/Fundraiser');
 const Donation = require('../models/Donation');
-const Feedback = require('../models/Feedback');
+const Comment = require('../models/Comment');
 const Vote = require('../models/Vote');
+const Application = require('../models/Application');
 
 // Create a new opportunity
 const createOpportunity = async (req, res) => {
@@ -41,9 +42,9 @@ const createOpportunity = async (req, res) => {
 const attachExtras = async (opportunities, userId = null) => {
   const ids = opportunities.map(o => o._id || o.id);
 
-  // Star ratings
-  const ratings = await Feedback.aggregate([
-    { $match: { opportunity: { $in: ids } } },
+  // Star ratings from comments (only comments with a rating)
+  const ratings = await Comment.aggregate([
+    { $match: { opportunity: { $in: ids }, rating: { $ne: null } } },
     { $group: { _id: '$opportunity', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
   ]);
   const ratingsMap = {};
@@ -210,11 +211,31 @@ const deleteOpportunity = async (req, res) => {
   }
 };
 
+// Creator manually closes or re-opens applications
+const updateOpportunityStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['open', 'closed', 'completed'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be open, closed, or completed' });
+    }
+    const opportunity = await Opportunity.findById(req.params.id);
+    if (!opportunity) return res.status(404).json({ message: 'Opportunity not found' });
+    if (opportunity.createdBy.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+
+    opportunity.status = status;
+    await opportunity.save();
+    res.json({ message: `Opportunity status updated to ${status}`, opportunity });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
   getOpportunityById,
   getMyOpportunities,
   updateOpportunity,
-  deleteOpportunity
+  deleteOpportunity,
+  updateOpportunityStatus
 };

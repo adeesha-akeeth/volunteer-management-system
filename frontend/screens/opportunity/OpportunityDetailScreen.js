@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, Image, TextInput, Switch, Modal, FlatList
+  TouchableOpacity, ActivityIndicator, Alert, Image, TextInput, Modal, FlatList,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api';
@@ -9,11 +10,110 @@ import { AuthContext } from '../../context/AuthContext';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
+// ── CommentItem defined OUTSIDE the parent component to avoid re-mount bug ──
+const CommentItem = ({ item, parentId, userId, handlers }) => {
+  const {
+    handleDeleteComment, handleCommentVote,
+    setReplyingTo, replyingTo,
+    setExpandedReplies, expandedReplies,
+    handleAddReply, replyText, setReplyText, replySubmitting,
+    openEditComment
+  } = handlers;
+
+  const isOwn = item.author?._id === userId || item.author?.id === userId;
+  const hasReplies = item.replies?.length > 0;
+  const repliesExpanded = expandedReplies[item._id];
+
+  return (
+    <View style={[styles.commentItem, parentId && styles.commentItemReply]}>
+      <View style={styles.commentHeader}>
+        <View style={styles.commentAvatar}>
+          <Text style={styles.commentAvatarText}>{item.author?.name?.charAt(0).toUpperCase() || '?'}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.commentAuthor}>{item.author?.name || 'Unknown'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.commentDate}>{new Date(item.createdAt).toDateString()}</Text>
+            {item.isUpdated && <Text style={styles.updatedLabel}>edited</Text>}
+          </View>
+        </View>
+        {isOwn && (
+          <View style={styles.commentActions}>
+            <TouchableOpacity onPress={() => openEditComment(item)} style={styles.editBtn}>
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDeleteComment(item._id, parentId)} style={styles.commentDeleteBtn}>
+              <Text style={styles.commentDeleteText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {item.rating && (
+        <Text style={styles.commentRating}>{'⭐'.repeat(item.rating)}</Text>
+      )}
+      <Text style={styles.commentText}>{item.text}</Text>
+      {item.photo ? (
+        <Image source={{ uri: `${BASE_URL}/${item.photo}` }} style={styles.commentPhoto} resizeMode="cover" />
+      ) : null}
+
+      <View style={styles.commentFooter}>
+        <TouchableOpacity
+          style={[styles.commentVoteBtn, item.userVote === 'like' && styles.commentVoteBtnLikeActive]}
+          onPress={() => handleCommentVote(item, 'like')}
+        >
+          <Text style={styles.commentVoteBtnText}>👍 {item.likes || 0}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.commentVoteBtn, item.userVote === 'dislike' && styles.commentVoteBtnDislikeActive]}
+          onPress={() => handleCommentVote(item, 'dislike')}
+        >
+          <Text style={styles.commentVoteBtnText}>👎 {item.dislikes || 0}</Text>
+        </TouchableOpacity>
+        {!parentId && (
+          <TouchableOpacity
+            style={styles.replyBtn}
+            onPress={() => setReplyingTo(replyingTo?.id === item._id ? null : { id: item._id, authorName: item.author?.name })}
+          >
+            <Text style={styles.replyBtnText}>↩ Reply</Text>
+          </TouchableOpacity>
+        )}
+        {hasReplies && !parentId && (
+          <TouchableOpacity style={styles.showRepliesBtn} onPress={() => setExpandedReplies(prev => ({ ...prev, [item._id]: !prev[item._id] }))}>
+            <Text style={styles.showRepliesBtnText}>{repliesExpanded ? 'Hide' : `${item.replies.length} repl${item.replies.length === 1 ? 'y' : 'ies'}`}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {!parentId && replyingTo?.id === item._id && (
+        <View style={styles.replyInputRow}>
+          <TextInput
+            style={styles.replyInput}
+            placeholder={`Reply to ${replyingTo.authorName}...`}
+            placeholderTextColor="#aaa"
+            value={replyText}
+            onChangeText={setReplyText}
+            multiline
+          />
+          <TouchableOpacity style={styles.replySubmitBtn} onPress={handleAddReply} disabled={replySubmitting}>
+            {replySubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.replySubmitText}>Send</Text>}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {!parentId && repliesExpanded && item.replies.map(reply => (
+        <CommentItem key={reply._id} item={reply} parentId={item._id} userId={userId} handlers={handlers} />
+      ))}
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const OpportunityDetailScreen = ({ route, navigation }) => {
   const { opportunityId } = route.params;
   const { user } = useContext(AuthContext);
   const [opportunity, setOpportunity] = useState(null);
-  const [feedback, setFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreator, setIsCreator] = useState(false);
   const [isPast, setIsPast] = useState(false);
@@ -23,34 +123,35 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [donors, setDonors] = useState([]);
   const [donorsLoading, setDonorsLoading] = useState(false);
 
-  // Review form
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formRating, setFormRating] = useState(0);
-  const [formComment, setFormComment] = useState('');
-  const [formPhoto, setFormPhoto] = useState(null);
-  const [formAnonymous, setFormAnonymous] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
-
   // Comments
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
+  const [commentRating, setCommentRating] = useState(0);
+  const [commentPhoto, setCommentPhoto] = useState(null);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
-  const [replyingTo, setReplyingTo] = useState(null); // { id, authorName }
+  const [showCommentForm, setShowCommentForm] = useState(false);
+
+  // Comment editing
+  const [editingComment, setEditingComment] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [editRating, setEditRating] = useState(0);
+  const [editPhoto, setEditPhoto] = useState(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Reply state
+  const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState({});
 
   const fetchData = async () => {
     try {
-      const [oppRes, feedbackRes, commentsRes] = await Promise.all([
+      const [oppRes, commentsRes] = await Promise.all([
         api.get(`/api/opportunities/${opportunityId}`),
-        api.get(`/api/feedback/opportunity/${opportunityId}`),
         api.get(`/api/comments/opportunity/${opportunityId}`)
       ]);
       const opp = oppRes.data;
       setOpportunity(opp);
-      setFeedback(feedbackRes.data.feedback || []);
       setComments(commentsRes.data || []);
       setIsCreator(opp.createdBy?._id === user?.id);
       if (opp.endDate && new Date() > new Date(opp.endDate)) setIsPast(true);
@@ -90,13 +191,39 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const pickCommentPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.7 });
+    if (!result.canceled) setCommentPhoto(result.assets[0]);
+  };
+
+  const pickEditPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.7 });
+    if (!result.canceled) setEditPhoto(result.assets[0]);
+  };
+
   const handleAddComment = async () => {
     if (!commentText.trim()) return;
     setCommentSubmitting(true);
     try {
-      const res = await api.post('/api/comments', { opportunityId, text: commentText });
+      const fd = new FormData();
+      fd.append('opportunityId', opportunityId);
+      fd.append('text', commentText);
+      if (commentRating) fd.append('rating', commentRating.toString());
+      if (commentPhoto) {
+        const filename = commentPhoto.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        fd.append('photo', { uri: commentPhoto.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
+      }
+      const res = await api.post('/api/comments', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setComments(prev => [...prev, res.data]);
-      setCommentText('');
+      setCommentText(''); setCommentRating(0); setCommentPhoto(null); setShowCommentForm(false);
+      // Refresh opportunity to get updated averageRating
+      const oppRes = await api.get(`/api/opportunities/${opportunityId}`);
+      setOpportunity(oppRes.data);
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to post comment');
     } finally {
@@ -143,6 +270,43 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     ]);
   };
 
+  const openEditComment = (comment) => {
+    setEditingComment(comment);
+    setEditText(comment.text);
+    setEditRating(comment.rating || 0);
+    setEditPhoto(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim()) return;
+    setEditSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append('text', editText);
+      if (editRating) fd.append('rating', editRating.toString());
+      if (editPhoto) {
+        const filename = editPhoto.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        fd.append('photo', { uri: editPhoto.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
+      }
+      const res = await api.put(`/api/comments/${editingComment._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const updated = res.data;
+      setComments(prev => prev.map(c => {
+        if (c._id === editingComment._id) return { ...c, text: updated.text, rating: updated.rating, photo: updated.photo, isUpdated: true };
+        return { ...c, replies: c.replies.map(r => r._id === editingComment._id ? { ...r, text: updated.text, rating: updated.rating, photo: updated.photo, isUpdated: true } : r) };
+      }));
+      setEditingComment(null);
+      if (editRating) {
+        const oppRes = await api.get(`/api/opportunities/${opportunityId}`);
+        setOpportunity(oppRes.data);
+      }
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const openDonors = async (fundraiser) => {
     setDonorsModal(fundraiser);
     setDonorsLoading(true);
@@ -155,8 +319,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       setDonorsLoading(false);
     }
   };
-
-  const myFeedback = feedback.find(f => f.volunteer?._id === user?.id);
 
   const handleDelete = () => {
     Alert.alert('Delete Opportunity', 'Are you sure?', [
@@ -174,140 +336,18 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     ]);
   };
 
-  const pickPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.7 });
-    if (!result.canceled) setFormPhoto(result.assets[0]);
-  };
-
-  const openAddForm = () => { setEditingId(null); setFormRating(0); setFormComment(''); setFormPhoto(null); setFormAnonymous(false); setShowForm(true); };
-  const openEditForm = (item) => { setEditingId(item._id); setFormRating(item.rating); setFormComment(item.comment || ''); setFormPhoto(null); setFormAnonymous(item.anonymous || false); setShowForm(true); };
-  const closeForm = () => { setShowForm(false); setEditingId(null); setFormRating(0); setFormComment(''); setFormPhoto(null); setFormAnonymous(false); };
-
-  const handleSubmitReview = async () => {
-    if (!formRating) { Alert.alert('Rating required', 'Please select a star rating'); return; }
-    setFormLoading(true);
-    try {
-      const buildFD = () => {
-        const fd = new FormData();
-        fd.append('rating', formRating.toString());
-        fd.append('comment', formComment);
-        fd.append('anonymous', formAnonymous.toString());
-        if (formPhoto) {
-          const filename = formPhoto.uri.split('/').pop();
-          const match = /\.(\w+)$/.exec(filename);
-          fd.append('photo', { uri: formPhoto.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
-        }
-        return fd;
-      };
-      if (editingId) {
-        await api.put(`/api/feedback/${editingId}`, buildFD());
-      } else {
-        const fd = buildFD();
-        fd.append('opportunityId', opportunityId);
-        await api.post('/api/feedback', fd);
-      }
-      closeForm();
-      await fetchData();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed');
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleDeleteReview = (feedbackId) => {
-    Alert.alert('Delete Review', 'Remove your review?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { try { await api.delete(`/api/feedback/${feedbackId}`); fetchData(); } catch { Alert.alert('Error', 'Failed'); } } }
-    ]);
-  };
-
-  const renderStars = (r) => [1,2,3,4,5].map(i => i <= r ? '⭐' : '☆').join('');
-
   const formatDateRange = (opp) => {
     if (opp.startDate && opp.endDate) return `${new Date(opp.startDate).toDateString()} — ${new Date(opp.endDate).toDateString()}`;
     if (opp.date) return new Date(opp.date).toDateString();
     return 'Date not set';
   };
 
-  const CommentItem = ({ item, parentId = null }) => {
-    const isOwn = item.author?._id === user?.id || item.author?.id === user?.id;
-    const hasReplies = item.replies?.length > 0;
-    const repliesExpanded = expandedReplies[item._id];
-
-    return (
-      <View style={[styles.commentItem, parentId && styles.commentItemReply]}>
-        <View style={styles.commentHeader}>
-          <View style={styles.commentAvatar}>
-            <Text style={styles.commentAvatarText}>{item.author?.name?.charAt(0).toUpperCase() || '?'}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.commentAuthor}>{item.author?.name || 'Unknown'}</Text>
-            <Text style={styles.commentDate}>{new Date(item.createdAt).toDateString()}</Text>
-          </View>
-          {isOwn && (
-            <TouchableOpacity onPress={() => handleDeleteComment(item._id, parentId)} style={styles.commentDeleteBtn}>
-              <Text style={styles.commentDeleteText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <Text style={styles.commentText}>{item.text}</Text>
-
-        <View style={styles.commentFooter}>
-          {/* Vote buttons */}
-          <TouchableOpacity
-            style={[styles.commentVoteBtn, item.userVote === 'like' && styles.commentVoteBtnLikeActive]}
-            onPress={() => handleCommentVote(item, 'like')}
-          >
-            <Text style={styles.commentVoteBtnText}>👍 {item.likes || 0}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.commentVoteBtn, item.userVote === 'dislike' && styles.commentVoteBtnDislikeActive]}
-            onPress={() => handleCommentVote(item, 'dislike')}
-          >
-            <Text style={styles.commentVoteBtnText}>👎 {item.dislikes || 0}</Text>
-          </TouchableOpacity>
-          {/* Reply button — only for top-level */}
-          {!parentId && (
-            <TouchableOpacity
-              style={styles.replyBtn}
-              onPress={() => setReplyingTo(replyingTo?.id === item._id ? null : { id: item._id, authorName: item.author?.name })}
-            >
-              <Text style={styles.replyBtnText}>↩ Reply</Text>
-            </TouchableOpacity>
-          )}
-          {hasReplies && !parentId && (
-            <TouchableOpacity style={styles.showRepliesBtn} onPress={() => setExpandedReplies(prev => ({ ...prev, [item._id]: !prev[item._id] }))}>
-              <Text style={styles.showRepliesBtnText}>{repliesExpanded ? 'Hide' : `${item.replies.length} repl${item.replies.length === 1 ? 'y' : 'ies'}`}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Reply input box */}
-        {!parentId && replyingTo?.id === item._id && (
-          <View style={styles.replyInputRow}>
-            <TextInput
-              style={styles.replyInput}
-              placeholder={`Reply to ${replyingTo.authorName}...`}
-              placeholderTextColor="#aaa"
-              value={replyText}
-              onChangeText={setReplyText}
-              multiline
-            />
-            <TouchableOpacity style={styles.replySubmitBtn} onPress={handleAddReply} disabled={replySubmitting}>
-              {replySubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.replySubmitText}>Send</Text>}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Replies */}
-        {!parentId && repliesExpanded && item.replies.map(reply => (
-          <CommentItem key={reply._id} item={reply} parentId={item._id} />
-        ))}
-      </View>
-    );
+  const commentHandlers = {
+    handleDeleteComment, handleCommentVote,
+    setReplyingTo, replyingTo,
+    setExpandedReplies, expandedReplies,
+    handleAddReply, replyText, setReplyText, replySubmitting,
+    openEditComment
   };
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
@@ -317,12 +357,16 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const dislikeActive = opportunity.userVote === 'dislike';
 
   return (
-    <ScrollView style={styles.container}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       {opportunity.bannerImage ? (
         <Image source={{ uri: `${BASE_URL}/${opportunity.bannerImage}` }} style={styles.bannerImage} resizeMode="cover" />
       ) : null}
 
       {isPast && <View style={styles.pastBanner}><Text style={styles.pastBannerText}>⏰ This opportunity has ended</Text></View>}
+      {opportunity.status === 'closed' && !isPast && (
+        <View style={styles.closedBanner}><Text style={styles.closedBannerText}>🔒 Applications are closed</Text></View>
+      )}
 
       <View style={styles.headerCard}>
         <Text style={styles.title}>{opportunity.title}</Text>
@@ -334,7 +378,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
             </View>
           )}
         </View>
-        {/* Like/Dislike row */}
         <View style={styles.voteRow}>
           <TouchableOpacity style={[styles.voteBtn, likeActive && styles.voteBtnLikeActive]} onPress={() => handleVote('like')}>
             <Text style={styles.voteBtnText}>👍 {opportunity.likes || 0} Likes</Text>
@@ -365,23 +408,24 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       {/* Fundraisers */}
       {opportunity.fundraisers?.map(fr => {
         const pct = fr.targetAmount > 0 ? Math.min(100, Math.round((fr.collectedAmount / fr.targetAmount) * 100)) : 0;
+        const isActive = fr.status === 'active';
         return (
-          <View key={fr._id} style={[styles.fundraiserCard, fr.status === 'completed' && styles.fundraiserCardDone]}>
+          <View key={fr._id} style={[styles.fundraiserCard, !isActive && styles.fundraiserCardDone]}>
             <View style={styles.fundraiserHeader}>
               <Text style={styles.fundraiserName}>{fr.name}</Text>
-              {fr.status === 'completed' && <View style={styles.completedBadge}><Text style={styles.completedText}>Completed</Text></View>}
+              {!isActive && <View style={[styles.statusBadge, fr.status === 'stopped' && styles.stoppedBadge]}><Text style={styles.statusBadgeText}>{fr.status}</Text></View>}
             </View>
             <View style={styles.amountRow}>
               <Text style={styles.collected}>LKR {fr.collectedAmount.toLocaleString()}</Text>
               <Text style={styles.target}> of LKR {fr.targetAmount.toLocaleString()} goal</Text>
             </View>
-            <View style={styles.progressBg}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
-            <Text style={styles.pctText}>{pct}% funded · {fr.donorCount || 0} donor{(fr.donorCount || 0) !== 1 ? 's' : ''}</Text>
+            <View style={styles.progressBg}><View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: isActive ? '#27ae60' : '#888' }]} /></View>
+            <Text style={styles.pctText}>{pct}% funded</Text>
             <View style={styles.fundraiserButtons}>
               <TouchableOpacity style={styles.viewDonorsBtn} onPress={() => openDonors(fr)}>
                 <Text style={styles.viewDonorsBtnText}>View Donors</Text>
               </TouchableOpacity>
-              {!isCreator && fr.status === 'active' && (
+              {!isCreator && isActive && (
                 <TouchableOpacity
                   style={styles.donateBtn}
                   onPress={() => navigation.navigate('Donate', { fundraiserId: fr._id, fundraiserName: fr.name, opportunityTitle: opportunity.title })}
@@ -407,111 +451,113 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           </>
         ) : (
           <TouchableOpacity
-            style={[styles.applyButton, isPast && styles.disabledButton]}
+            style={[styles.applyButton, (isPast || opportunity.status !== 'open') && styles.disabledButton]}
             onPress={() => {
               if (isPast) { Alert.alert('Ended', 'This opportunity has already ended.'); return; }
+              if (opportunity.status === 'closed') { Alert.alert('Closed', 'Applications are closed for this opportunity.'); return; }
               navigation.navigate('Apply', { opportunity });
             }}
-            disabled={isPast}
+            disabled={isPast || opportunity.status !== 'open'}
           >
-            <Text style={styles.applyButtonText}>{isPast ? 'Opportunity Ended' : 'Apply Now'}</Text>
+            <Text style={styles.applyButtonText}>
+              {isPast ? 'Opportunity Ended' : opportunity.status === 'closed' ? 'Applications Closed' : 'Apply Now'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Reviews */}
+      {/* Comments & Reviews (merged) */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Reviews {feedback.length > 0 ? `(${feedback.length})` : ''}</Text>
-        {feedback.length === 0 ? (
-          <Text style={styles.noFeedbackText}>No reviews yet. Be the first!</Text>
-        ) : (
-          feedback.map(item => (
-            <View key={item._id} style={styles.feedbackItem}>
-              <View style={styles.feedbackHeader}>
-                <View style={styles.feedbackAvatar}>
-                  <Text style={styles.feedbackAvatarText}>{item.anonymous ? 'A' : item.volunteer?.name?.charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.feedbackName}>{item.volunteer?.name}{item.anonymous && <Text style={styles.anonTag}> (anonymous)</Text>}</Text>
-                  <Text style={styles.feedbackStars}>{renderStars(item.rating)}</Text>
-                </View>
-                {item.volunteer?._id === user?.id && (
-                  <View style={styles.commentActions}>
-                    <TouchableOpacity onPress={() => openEditForm(item)} style={styles.editBtn}><Text style={styles.editBtnText}>Edit</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteReview(item._id)} style={styles.deleteBtn}><Text style={styles.deleteBtnText}>Del</Text></TouchableOpacity>
-                  </View>
-                )}
-              </View>
-              {item.comment ? <Text style={styles.feedbackComment}>{item.comment}</Text> : null}
-              {item.photo ? <Image source={{ uri: `${BASE_URL}/${item.photo}` }} style={styles.feedbackPhoto} resizeMode="cover" /> : null}
-              <Text style={styles.feedbackDate}>{new Date(item.createdAt).toDateString()}</Text>
-            </View>
-          ))
-        )}
+        <Text style={styles.sectionTitle}>Comments & Reviews {comments.length > 0 ? `(${comments.length})` : ''}</Text>
 
-        {user && !myFeedback && !showForm && (
-          <TouchableOpacity style={styles.addCommentButton} onPress={openAddForm}>
-            <Text style={styles.addCommentButtonText}>✍️ Write a Review</Text>
+        {/* Post a comment */}
+        {user && !showCommentForm && (
+          <TouchableOpacity style={styles.addCommentButton} onPress={() => setShowCommentForm(true)}>
+            <Text style={styles.addCommentButtonText}>✍️ Write a Comment</Text>
           </TouchableOpacity>
         )}
 
-        {showForm && (
+        {showCommentForm && (
           <View style={styles.commentForm}>
-            <Text style={styles.formTitle}>{editingId ? 'Edit Review' : 'Write a Review'}</Text>
-            <Text style={styles.formLabel}>Rating *</Text>
+            <Text style={styles.formTitle}>Write a Comment</Text>
+            <Text style={styles.formLabel}>Rating (optional)</Text>
             <View style={styles.starContainer}>
               {[1,2,3,4,5].map(star => (
-                <TouchableOpacity key={star} onPress={() => setFormRating(star)}>
-                  <Text style={styles.star}>{formRating >= star ? '⭐' : '☆'}</Text>
+                <TouchableOpacity key={star} onPress={() => setCommentRating(commentRating === star ? 0 : star)}>
+                  <Text style={styles.star}>{commentRating >= star ? '⭐' : '☆'}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.formTextArea} placeholder="Share your experience..." placeholderTextColor="#aaa" value={formComment} onChangeText={setFormComment} multiline numberOfLines={4} />
-            <TouchableOpacity style={styles.photoPickerButton} onPress={pickPhoto}>
-              <Text style={styles.photoPickerText}>{formPhoto ? '✅ Photo selected' : '📷 Add a Photo (optional)'}</Text>
+            <TextInput
+              style={styles.formTextArea}
+              placeholder="Share your thoughts..."
+              placeholderTextColor="#aaa"
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              numberOfLines={4}
+            />
+            <TouchableOpacity style={styles.photoPickerButton} onPress={pickCommentPhoto}>
+              <Text style={styles.photoPickerText}>{commentPhoto ? '✅ Photo selected' : '📷 Add a Photo (optional)'}</Text>
             </TouchableOpacity>
-            {formPhoto && <Image source={{ uri: formPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />}
-            <View style={styles.anonymousRow}>
-              <Text style={styles.formLabel}>Post anonymously</Text>
-              <Switch value={formAnonymous} onValueChange={setFormAnonymous} trackColor={{ false: '#ccc', true: '#2e86de' }} thumbColor="#fff" />
-            </View>
+            {commentPhoto && <Image source={{ uri: commentPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />}
             <View style={styles.formButtons}>
-              <TouchableOpacity style={styles.submitCommentButton} onPress={handleSubmitReview} disabled={formLoading}>
-                {formLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>{editingId ? 'Update' : 'Submit'}</Text>}
+              <TouchableOpacity style={styles.submitCommentButton} onPress={handleAddComment} disabled={commentSubmitting}>
+                {commentSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>Post</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelCommentButton} onPress={closeForm}>
+              <TouchableOpacity style={styles.cancelCommentButton} onPress={() => { setShowCommentForm(false); setCommentText(''); setCommentRating(0); setCommentPhoto(null); }}>
                 <Text style={styles.cancelCommentText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
-      </View>
-
-      {/* Comments Section */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Comments {comments.length > 0 ? `(${comments.length})` : ''}</Text>
-
-        {/* Add comment input */}
-        <View style={styles.addCommentRow}>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Write a comment..."
-            placeholderTextColor="#aaa"
-            value={commentText}
-            onChangeText={setCommentText}
-            multiline
-          />
-          <TouchableOpacity style={styles.commentSubmitBtn} onPress={handleAddComment} disabled={commentSubmitting || !commentText.trim()}>
-            {commentSubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.commentSubmitText}>Post</Text>}
-          </TouchableOpacity>
-        </View>
 
         {comments.length === 0 ? (
-          <Text style={styles.noFeedbackText}>No comments yet. Start the conversation!</Text>
+          <Text style={styles.noFeedbackText}>No comments yet. Be the first!</Text>
         ) : (
-          comments.map(item => <CommentItem key={item._id} item={item} />)
+          comments.map(item => (
+            <CommentItem key={item._id} item={item} parentId={null} userId={user?.id} handlers={commentHandlers} />
+          ))
         )}
       </View>
+
+      {/* Edit Comment Modal */}
+      <Modal visible={!!editingComment} transparent animationType="slide" onRequestClose={() => setEditingComment(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEditingComment(null)}>
+          <View style={styles.editModal} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.formTitle}>Edit Comment</Text>
+            <Text style={styles.formLabel}>Rating (optional)</Text>
+            <View style={styles.starContainer}>
+              {[1,2,3,4,5].map(star => (
+                <TouchableOpacity key={star} onPress={() => setEditRating(editRating === star ? 0 : star)}>
+                  <Text style={styles.star}>{editRating >= star ? '⭐' : '☆'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.formTextArea}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              numberOfLines={4}
+              placeholderTextColor="#aaa"
+            />
+            <TouchableOpacity style={styles.photoPickerButton} onPress={pickEditPhoto}>
+              <Text style={styles.photoPickerText}>{editPhoto ? '✅ New photo selected' : '📷 Change photo (optional)'}</Text>
+            </TouchableOpacity>
+            {editPhoto && <Image source={{ uri: editPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />}
+            <View style={styles.formButtons}>
+              <TouchableOpacity style={styles.submitCommentButton} onPress={handleSaveEdit} disabled={editSubmitting}>
+                {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>Save</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelCommentButton} onPress={() => setEditingComment(null)}>
+                <Text style={styles.cancelCommentText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Donors Modal */}
       <Modal visible={!!donorsModal} animationType="slide" onRequestClose={() => setDonorsModal(null)}>
@@ -550,6 +596,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         </View>
       </Modal>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -557,8 +604,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   bannerImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 10 },
-  pastBanner: { backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, marginBottom: 12, alignItems: 'center' },
+  pastBanner: { backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, marginBottom: 8, alignItems: 'center' },
   pastBannerText: { color: '#fff', fontWeight: 'bold' },
+  closedBanner: { backgroundColor: '#f39c12', borderRadius: 8, padding: 10, marginBottom: 8, alignItems: 'center' },
+  closedBannerText: { color: '#fff', fontWeight: 'bold' },
   headerCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 20, marginBottom: 15 },
   title: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 10 },
   headerRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
@@ -579,13 +628,14 @@ const styles = StyleSheet.create({
   fundraiserCardDone: { borderLeftColor: '#888', backgroundColor: '#fafafa' },
   fundraiserHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   fundraiserName: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
-  completedBadge: { backgroundColor: '#888', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
-  completedText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  statusBadge: { backgroundColor: '#888', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  stoppedBadge: { backgroundColor: '#e74c3c' },
+  statusBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold', textTransform: 'capitalize' },
   amountRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
   collected: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   target: { fontSize: 13, color: '#888' },
   progressBg: { height: 10, backgroundColor: '#e0e0e0', borderRadius: 5, overflow: 'hidden', marginBottom: 5 },
-  progressFill: { height: '100%', backgroundColor: '#27ae60', borderRadius: 5 },
+  progressFill: { height: '100%', borderRadius: 5 },
   pctText: { fontSize: 12, color: '#888', marginBottom: 12 },
   fundraiserButtons: { flexDirection: 'row', gap: 8 },
   viewDonorsBtn: { flex: 1, backgroundColor: '#f0f4f8', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#ddd' },
@@ -600,26 +650,11 @@ const styles = StyleSheet.create({
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   deleteButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  // Reviews
+  // Comments
   noFeedbackText: { color: '#999', fontSize: 14, textAlign: 'center', padding: 10 },
-  feedbackItem: { borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingVertical: 12 },
-  feedbackHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  feedbackAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#2e86de', justifyContent: 'center', alignItems: 'center' },
-  feedbackAvatarText: { color: '#fff', fontWeight: 'bold' },
-  feedbackName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  anonTag: { color: '#888', fontWeight: 'normal', fontSize: 12 },
-  feedbackStars: { fontSize: 14 },
-  feedbackComment: { fontSize: 14, color: '#555', marginBottom: 8, lineHeight: 20 },
-  feedbackPhoto: { width: '100%', height: 200, borderRadius: 10, marginBottom: 8 },
-  feedbackDate: { fontSize: 12, color: '#999' },
-  commentActions: { flexDirection: 'row', gap: 6 },
-  editBtn: { backgroundColor: '#2e86de', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  editBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
-  deleteBtn: { backgroundColor: '#e74c3c', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  deleteBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
-  addCommentButton: { marginTop: 15, backgroundColor: '#9b59b6', borderRadius: 10, padding: 12, alignItems: 'center' },
+  addCommentButton: { marginBottom: 14, backgroundColor: '#9b59b6', borderRadius: 10, padding: 12, alignItems: 'center' },
   addCommentButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  commentForm: { marginTop: 15, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 15 },
+  commentForm: { marginBottom: 14, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 15 },
   formTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12 },
   formLabel: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
   starContainer: { flexDirection: 'row', gap: 6, marginBottom: 14 },
@@ -628,17 +663,12 @@ const styles = StyleSheet.create({
   photoPickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#9b59b6', borderStyle: 'dashed', borderRadius: 8, padding: 14, alignItems: 'center', marginBottom: 12 },
   photoPickerText: { color: '#9b59b6', fontWeight: 'bold', fontSize: 14 },
   formPhotoPreview: { width: '100%', height: 180, borderRadius: 8, marginBottom: 12 },
-  anonymousRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   formButtons: { flexDirection: 'row', gap: 10 },
   submitCommentButton: { flex: 1, backgroundColor: '#9b59b6', borderRadius: 8, padding: 12, alignItems: 'center' },
   submitCommentText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   cancelCommentButton: { flex: 1, borderWidth: 1, borderColor: '#999', borderRadius: 8, padding: 12, alignItems: 'center' },
   cancelCommentText: { color: '#555', fontWeight: 'bold', fontSize: 15 },
-  // Comments section
-  addCommentRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  commentInput: { flex: 1, backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, fontSize: 14, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 44, textAlignVertical: 'top' },
-  commentSubmitBtn: { backgroundColor: '#2e86de', borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center' },
-  commentSubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  // Comment items
   commentItem: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 10 },
   commentItemReply: { backgroundColor: '#f0f4f8', marginLeft: 20, marginTop: 6, marginBottom: 4 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
@@ -646,9 +676,15 @@ const styles = StyleSheet.create({
   commentAvatarText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   commentAuthor: { fontSize: 13, fontWeight: 'bold', color: '#333' },
   commentDate: { fontSize: 11, color: '#aaa' },
+  updatedLabel: { fontSize: 10, color: '#f39c12', fontStyle: 'italic' },
+  commentActions: { flexDirection: 'row', gap: 6 },
+  editBtn: { backgroundColor: '#2e86de', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  editBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   commentDeleteBtn: { backgroundColor: '#ffe0e0', borderRadius: 12, padding: 4, paddingHorizontal: 7 },
   commentDeleteText: { color: '#e74c3c', fontSize: 12, fontWeight: 'bold' },
-  commentText: { fontSize: 14, color: '#444', lineHeight: 20, marginBottom: 8 },
+  commentRating: { fontSize: 14, marginBottom: 4 },
+  commentText: { fontSize: 14, color: '#444', lineHeight: 20, marginBottom: 6 },
+  commentPhoto: { width: '100%', height: 160, borderRadius: 8, marginBottom: 8 },
   commentFooter: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   commentVoteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: '#ddd' },
   commentVoteBtnLikeActive: { backgroundColor: '#e8f4fd', borderColor: '#2e86de' },
@@ -662,6 +698,10 @@ const styles = StyleSheet.create({
   replyInput: { flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 13, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 38, textAlignVertical: 'top' },
   replySubmitBtn: { backgroundColor: '#2e86de', borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center' },
   replySubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  // Edit modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  editModal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   // Donors modal
   donorsModal: { flex: 1, backgroundColor: '#f0f4f8' },
   donorsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#27ae60', padding: 20, paddingTop: 15 },

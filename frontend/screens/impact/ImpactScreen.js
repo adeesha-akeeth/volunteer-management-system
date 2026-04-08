@@ -56,9 +56,9 @@ const ImpactScreen = ({ navigation }) => {
             <Text style={styles.heroBadgeLabel}>from donations</Text>
           </View>
           <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeIcon}>📌</Text>
-            <Text style={styles.heroBadgeValue}>{points?.opportunityPoints || 0}</Text>
-            <Text style={styles.heroBadgeLabel}>from posting</Text>
+            <Text style={styles.heroBadgeIcon}>🎖️</Text>
+            <Text style={styles.heroBadgeValue}>{points?.completionPoints || 0}</Text>
+            <Text style={styles.heroBadgeLabel}>from completions</Text>
           </View>
         </View>
       </View>
@@ -74,8 +74,8 @@ const ImpactScreen = ({ navigation }) => {
           <Text style={styles.statLabel}>Donated</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{points?.opportunitiesCreated || 0}</Text>
-          <Text style={styles.statLabel}>Opportunities Posted</Text>
+          <Text style={styles.statValue}>{points?.completedVolunteers || 0}</Text>
+          <Text style={styles.statLabel}>Volunteers Completed</Text>
         </View>
       </View>
 
@@ -84,7 +84,7 @@ const ImpactScreen = ({ navigation }) => {
         <Text style={styles.rulesTitle}>How Points Work</Text>
         <Text style={styles.rulesItem}>⏱ 10 pts per verified contribution hour</Text>
         <Text style={styles.rulesItem}>💰 1 pt per LKR 100 donated</Text>
-        <Text style={styles.rulesItem}>📌 50 pts per opportunity you create</Text>
+        <Text style={styles.rulesItem}>🎖️ 100 pts per volunteer you mark as completed</Text>
       </View>
 
       {/* Ongoing Volunteering Button */}
@@ -97,6 +97,18 @@ const ImpactScreen = ({ navigation }) => {
           </View>
         </View>
         <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.8)" />
+      </TouchableOpacity>
+
+      {/* Past Volunteering Button */}
+      <TouchableOpacity style={styles.pastBtn} onPress={() => navigation.navigate('PastVolunteering')}>
+        <View style={styles.volunteeringBtnLeft}>
+          <Ionicons name="checkmark-circle-outline" size={28} color="#9b59b6" />
+          <View style={{ marginLeft: 14 }}>
+            <Text style={styles.pastBtnTitle}>Past Volunteering</Text>
+            <Text style={styles.pastBtnSubtitle}>View your completed opportunities</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color="#9b59b6" />
       </TouchableOpacity>
 
       {/* Leaderboard */}
@@ -168,10 +180,13 @@ const styles = StyleSheet.create({
   rulesTitle: { fontSize: 14, fontWeight: 'bold', color: '#9b59b6', marginBottom: 8 },
   rulesItem: { fontSize: 13, color: '#555', marginBottom: 4 },
   // Volunteering button
-  volunteeringBtn: { margin: 15, backgroundColor: '#2e86de', borderRadius: 14, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
+  volunteeringBtn: { marginHorizontal: 15, marginTop: 15, marginBottom: 0, backgroundColor: '#2e86de', borderRadius: 14, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
   volunteeringBtnLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   volunteeringBtnTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
   volunteeringBtnSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
+  pastBtn: { marginHorizontal: 15, marginTop: 10, marginBottom: 0, backgroundColor: '#f8f4ff', borderRadius: 14, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 2, borderWidth: 1, borderColor: '#e0d0f0' },
+  pastBtnTitle: { color: '#9b59b6', fontSize: 17, fontWeight: 'bold' },
+  pastBtnSubtitle: { color: '#aaa', fontSize: 12, marginTop: 2 },
   // Leaderboard
   leaderboardCard: { margin: 15, marginTop: 0, backgroundColor: '#fff', borderRadius: 14, padding: 16, elevation: 3, marginBottom: 30 },
   leaderboardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },

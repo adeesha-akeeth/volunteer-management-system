@@ -2,15 +2,35 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const validatePassword = (password) => {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least 1 uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain at least 1 lowercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain at least 1 number';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least 1 symbol';
+  return null;
+};
+
 // Register
 const register = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+    const pwError = validatePassword(password);
+    if (pwError) return res.status(400).json({ message: pwError });
+
+    // Check email uniqueness
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({ message: 'Email is already registered' });
+    }
+
+    // Check phone uniqueness
+    if (phone) {
+      const existingPhone = await User.findOne({ phone });
+      if (existingPhone) {
+        return res.status(400).json({ message: 'Phone number is already registered' });
+      }
     }
 
     // Hash password
@@ -121,6 +141,10 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    const pwError = validatePassword(newPassword);
+    if (pwError) return res.status(400).json({ message: pwError });
+
     const user = await User.findById(req.user.id);
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);

@@ -50,6 +50,11 @@ const opportunitySchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  status: {
+    type: String,
+    enum: ['open', 'closed', 'completed'],
+    default: 'open'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

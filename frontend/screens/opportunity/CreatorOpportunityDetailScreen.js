@@ -54,8 +54,14 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
   const [newFrTarget, setNewFrTarget] = useState('');
   const [addFrLoading, setAddFrLoading] = useState(false);
 
+  // Contribution visibility per app
+  const [showContribFor, setShowContribFor] = useState({});
+
   // Groups
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  // Inline group creation in assign modal
+  const [inlineGroupName, setInlineGroupName] = useState('');
+  const [inlineGroupLoading, setInlineGroupLoading] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
   const [groupCreateLoading, setGroupCreateLoading] = useState(false);
@@ -307,6 +313,65 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
     } catch { Alert.alert('Error', 'Failed to update contribution'); }
   };
 
+  const handleToggleOpportunityStatus = () => {
+    const current = opportunity?.status || 'open';
+    const next = current === 'open' ? 'closed' : 'open';
+    Alert.alert(
+      next === 'closed' ? 'Close Applications' : 'Re-open Applications',
+      next === 'closed' ? 'Prevent new applications from being submitted?' : 'Allow new applications again?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Confirm', onPress: async () => {
+          try {
+            await api.patch(`/api/opportunities/${opportunityId}/status`, { status: next });
+            fetchData();
+          } catch { Alert.alert('Error', 'Failed to update status'); }
+        }}
+      ]
+    );
+  };
+
+  const handleStopFundraiser = (fr) => {
+    Alert.alert('Stop Fundraiser', `Stop "${fr.name}"? No more donations will be accepted.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Stop', style: 'destructive', onPress: async () => {
+        try {
+          await api.put(`/api/fundraisers/${fr._id}/stop`);
+          fetchData();
+        } catch { Alert.alert('Error', 'Failed to stop fundraiser'); }
+      }}
+    ]);
+  };
+
+  const handleRevokeVolunteer = (appId, volunteerName) => {
+    Alert.alert('Remove Volunteer', `Remove ${volunteerName} from this opportunity?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try {
+          await api.put(`/api/applications/${appId}/revoke`);
+          fetchData();
+        } catch { Alert.alert('Error', 'Failed to remove volunteer'); }
+      }}
+    ]);
+  };
+
+  const handleInlineCreateGroup = async () => {
+    if (!inlineGroupName.trim()) { Alert.alert('Missing', 'Enter a group name'); return; }
+    if (!assignModal) return;
+    setInlineGroupLoading(true);
+    try {
+      const grpRes = await api.post('/api/application-groups', { opportunityId, name: inlineGroupName, description: '' });
+      await api.post(`/api/application-groups/${grpRes.data._id}/assign`, { applicationId: assignModal._id });
+      setInlineGroupName('');
+      setAssignModal(null);
+      fetchData();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed');
+    } finally {
+      setInlineGroupLoading(false);
+    }
+  };
+
   // Compute grouped app IDs
   const groupedAppIds = new Set(groups.flatMap(g => g.applications.map(a => a._id || a)));
   const ungroupedApps = applications.filter(a => !groupedAppIds.has(a._id));
@@ -347,8 +412,10 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
         {app.status === 'approved' && (
           <TouchableOpacity style={styles.completeButton} onPress={() => handleUpdateAppStatus(app._id, 'completed')}><Text style={styles.actionBtnText}>🏆 Complete</Text></TouchableOpacity>
         )}
-        {app.status === 'completed' && (
-          <TouchableOpacity style={styles.certButton} onPress={() => navigation.navigate('GenerateCertificate', { application: app, opportunity })}><Text style={styles.actionBtnText}>🎓 Certificate</Text></TouchableOpacity>
+        {(app.status === 'approved' || app.status === 'completed') && (
+          <TouchableOpacity style={styles.revokeButton} onPress={() => handleRevokeVolunteer(app._id, app.volunteer?.name)}>
+            <Text style={styles.actionBtnText}>✕ Remove</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -366,39 +433,53 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {/* Contribution requests for approved apps */}
+      {/* Contribution requests — behind a button */}
       {app.status === 'approved' && (() => {
         const appContribs = contributions.filter(c =>
           c.volunteer?._id === app.volunteer?._id || c.volunteer === app.volunteer?._id
         );
-        if (appContribs.length === 0) return (
-          <Text style={styles.noContribText}>No contribution submissions yet</Text>
-        );
+        const pendingContribs = appContribs.filter(c => c.status === 'pending');
+        const isOpen = showContribFor[app._id];
         return (
-          <View style={styles.contribSection}>
-            <Text style={styles.contribSectionTitle}>📋 Contribution Requests</Text>
-            {appContribs.map(c => (
-              <View key={c._id} style={[styles.contribCard, { borderLeftColor: c.status === 'verified' ? '#27ae60' : c.status === 'rejected' ? '#e74c3c' : '#f39c12' }]}>
-                <View style={styles.contribRow}>
-                  <Text style={styles.contribHours}>⏱ {c.hours} hr{c.hours !== 1 ? 's' : ''}</Text>
-                  <View style={[styles.contribBadge, { backgroundColor: c.status === 'verified' ? '#27ae60' : c.status === 'rejected' ? '#e74c3c' : '#f39c12' }]}>
-                    <Text style={styles.contribBadgeText}>{c.status}</Text>
-                  </View>
+          <View>
+            <TouchableOpacity
+              style={[styles.viewContribBtn, pendingContribs.length > 0 && styles.viewContribBtnAlert]}
+              onPress={() => setShowContribFor(prev => ({ ...prev, [app._id]: !prev[app._id] }))}
+            >
+              <Text style={[styles.viewContribBtnText, pendingContribs.length > 0 && { color: '#fff' }]}>
+                ⏱ Contributions ({appContribs.length}){pendingContribs.length > 0 ? ` · ${pendingContribs.length} pending` : ''} {isOpen ? '▲' : '▼'}
+              </Text>
+            </TouchableOpacity>
+            {isOpen && (
+              appContribs.length === 0 ? (
+                <Text style={styles.noContribText}>No contribution submissions yet</Text>
+              ) : (
+                <View style={styles.contribSection}>
+                  {appContribs.map(c => (
+                    <View key={c._id} style={[styles.contribCard, { borderLeftColor: c.status === 'verified' ? '#27ae60' : c.status === 'rejected' ? '#e74c3c' : '#f39c12' }]}>
+                      <View style={styles.contribRow}>
+                        <Text style={styles.contribHours}>⏱ {c.hours} hr{c.hours !== 1 ? 's' : ''}</Text>
+                        <View style={[styles.contribBadge, { backgroundColor: c.status === 'verified' ? '#27ae60' : c.status === 'rejected' ? '#e74c3c' : '#f39c12' }]}>
+                          <Text style={styles.contribBadgeText}>{c.status}</Text>
+                        </View>
+                      </View>
+                      {c.description ? <Text style={styles.contribDesc}>{c.description}</Text> : null}
+                      <Text style={styles.contribDate}>{new Date(c.createdAt).toDateString()}</Text>
+                      {c.status === 'pending' && (
+                        <View style={styles.contribActions}>
+                          <TouchableOpacity style={styles.verifyBtn} onPress={() => handleVerifyContribution(c._id, 'verified')}>
+                            <Text style={styles.verifyBtnText}>✅ Verify</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.rejectContribBtn} onPress={() => handleVerifyContribution(c._id, 'rejected')}>
+                            <Text style={styles.rejectContribBtnText}>❌ Reject</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
                 </View>
-                {c.description ? <Text style={styles.contribDesc}>{c.description}</Text> : null}
-                <Text style={styles.contribDate}>{new Date(c.createdAt).toDateString()}</Text>
-                {c.status === 'pending' && (
-                  <View style={styles.contribActions}>
-                    <TouchableOpacity style={styles.verifyBtn} onPress={() => handleVerifyContribution(c._id, 'verified')}>
-                      <Text style={styles.verifyBtnText}>✅ Verify</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.rejectContribBtn} onPress={() => handleVerifyContribution(c._id, 'rejected')}>
-                      <Text style={styles.rejectContribBtnText}>❌ Reject</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
+              )
+            )}
           </View>
         );
       })()}
@@ -417,9 +498,17 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
         <Text style={styles.headerDetail}>📅 {fmt(opportunity?.startDate)} — {fmt(opportunity?.endDate)}</Text>
         <Text style={styles.headerDetail}>👥 {opportunity?.spotsAvailable} spots</Text>
         {opportunity?.responsibleName ? <Text style={styles.headerDetail}>🙋 {opportunity.responsibleName}</Text> : null}
-        <TouchableOpacity style={styles.editButton} onPress={openEdit}>
-          <Text style={styles.editButtonText}>✏️ Edit Details</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.editButton} onPress={openEdit}>
+            <Text style={styles.editButtonText}>✏️ Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.closeBtn, opportunity?.status === 'closed' && styles.openBtn]}
+            onPress={handleToggleOpportunityStatus}
+          >
+            <Text style={styles.editButtonText}>{opportunity?.status === 'closed' ? '🔓 Re-open' : '🔒 Close Apps'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Edit form */}
@@ -663,6 +752,11 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.completeBtnText}>Mark Complete</Text>
                       </TouchableOpacity>
                     )}
+                    {fr.status === 'active' && (
+                      <TouchableOpacity style={styles.stopFrBtn} onPress={() => handleStopFundraiser(fr)}>
+                        <Text style={styles.stopFrBtnText}>Stop</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </TouchableOpacity>
 
@@ -753,7 +847,19 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
             <Text style={styles.assignModalTitle}>Move to Group</Text>
             <Text style={styles.assignModalSubtitle}>{assignModal?.volunteer?.name}</Text>
             {groups.length === 0 ? (
-              <Text style={styles.noGroupsText}>No groups yet. Create one first.</Text>
+              <View>
+                <Text style={styles.noGroupsText}>No groups yet. Create one to get started:</Text>
+                <TextInput
+                  style={[styles.input, { marginTop: 10 }]}
+                  placeholderTextColor="#999"
+                  placeholder="Group name (e.g. Potential)"
+                  value={inlineGroupName}
+                  onChangeText={setInlineGroupName}
+                />
+                <TouchableOpacity style={styles.saveButton} onPress={handleInlineCreateGroup} disabled={inlineGroupLoading}>
+                  {inlineGroupLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Create & Assign</Text>}
+                </TouchableOpacity>
+              </View>
             ) : groups.map(g => (
               <TouchableOpacity key={g._id} style={styles.assignGroupItem} onPress={() => handleAssignToGroup(g._id)} disabled={assignLoading}>
                 <Text style={styles.assignGroupItemIcon}>📂</Text>
@@ -780,7 +886,10 @@ const styles = StyleSheet.create({
   headerCard: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, marginBottom: 15 },
   title: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
   headerDetail: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginBottom: 4 },
-  editButton: { marginTop: 10, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8, padding: 10, alignItems: 'center' },
+  headerActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  editButton: { flex: 1, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8, padding: 10, alignItems: 'center' },
+  closeBtn: { flex: 1, backgroundColor: 'rgba(231,76,60,0.6)', borderRadius: 8, padding: 10, alignItems: 'center' },
+  openBtn: { flex: 1, backgroundColor: 'rgba(39,174,96,0.6)', borderRadius: 8, padding: 10, alignItems: 'center' },
   editButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   editForm: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   editFormTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
@@ -859,6 +968,7 @@ const styles = StyleSheet.create({
   rejectButton: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center' },
   completeButton: { flex: 1, backgroundColor: '#2e86de', borderRadius: 8, padding: 10, alignItems: 'center' },
   certButton: { flex: 1, backgroundColor: '#f39c12', borderRadius: 8, padding: 10, alignItems: 'center' },
+  revokeButton: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center' },
   actionBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   groupAppActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   assignGroupBtn: { backgroundColor: '#f0f4f8', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: '#9b59b6' },
@@ -888,6 +998,8 @@ const styles = StyleSheet.create({
   viewDonorsBtnText: { color: '#555', fontWeight: 'bold', fontSize: 12 },
   completeBtn: { flex: 1, backgroundColor: '#2e86de', borderRadius: 8, padding: 9, alignItems: 'center' },
   completeBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  stopFrBtn: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 8, padding: 9, alignItems: 'center' },
+  stopFrBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   donationsSection: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 10, marginTop: -4 },
   noDonationsText: { color: '#999', textAlign: 'center', padding: 20, fontSize: 14 },
   // Donors modal
@@ -903,6 +1015,9 @@ const styles = StyleSheet.create({
   donorMessage: { fontSize: 13, color: '#888', fontStyle: 'italic', marginTop: 2 },
   donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' },
   // Contributions
+  viewContribBtn: { marginTop: 8, backgroundColor: '#f0f4f8', borderRadius: 8, padding: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ddd' },
+  viewContribBtnAlert: { backgroundColor: '#f39c12', borderColor: '#f39c12' },
+  viewContribBtnText: { color: '#555', fontWeight: 'bold', fontSize: 12 },
   noContribText: { color: '#bbb', fontSize: 12, marginTop: 6, fontStyle: 'italic' },
   contribSection: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 10 },
   contribSectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#555', marginBottom: 8 },

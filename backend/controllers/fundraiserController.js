@@ -150,11 +150,33 @@ const updateFundraiser = async (req, res) => {
   }
 };
 
+// Stop a fundraiser (creator only)
+const stopFundraiser = async (req, res) => {
+  try {
+    const fundraiser = await Fundraiser.findById(req.params.id).populate('opportunity');
+    if (!fundraiser) return res.status(404).json({ message: 'Fundraiser not found' });
+    if (fundraiser.opportunity.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    if (fundraiser.status !== 'active') {
+      return res.status(400).json({ message: 'Only active fundraisers can be stopped' });
+    }
+
+    fundraiser.status = 'stopped';
+    await fundraiser.save();
+
+    res.status(200).json({ message: 'Fundraiser stopped', fundraiser });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createFundraiser,
   getFundraisersForOpportunity,
   getAllFundraisers,
   completeFundraiser,
+  stopFundraiser,
   getDonorsForFundraiser,
   updateFundraiser
 };

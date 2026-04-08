@@ -1,4 +1,6 @@
 const Vote = require('../models/Vote');
+const Comment = require('../models/Comment');
+const Opportunity = require('../models/Opportunity');
 
 const toggleVote = async (req, res) => {
   try {
@@ -30,4 +32,21 @@ const toggleVote = async (req, res) => {
   }
 };
 
-module.exports = { toggleVote };
+// Get current user's votes and comments for the "My Activity" page
+const getMyActivity = async (req, res) => {
+  try {
+    const [votes, comments] = await Promise.all([
+      Vote.find({ user: req.user.id, targetType: 'opportunity' })
+        .populate({ path: 'targetId', model: 'Opportunity', select: 'title' })
+        .sort({ createdAt: -1 }),
+      Comment.find({ author: req.user.id })
+        .populate('opportunity', 'title')
+        .sort({ createdAt: -1 })
+    ]);
+    res.json({ votes, comments });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { toggleVote, getMyActivity };
