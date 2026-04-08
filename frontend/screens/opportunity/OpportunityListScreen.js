@@ -43,7 +43,11 @@ const OpportunityListScreen = ({ navigation }) => {
     if (category) filtered = filtered.filter(o => o.category === category);
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
-      filtered = filtered.filter(o => o.title?.toLowerCase().includes(lower) || o.organization?.toLowerCase().includes(lower));
+      filtered = filtered.filter(o =>
+        o.title?.toLowerCase().includes(lower) ||
+        o.organization?.toLowerCase().includes(lower) ||
+        o.createdBy?.name?.toLowerCase().includes(lower)
+      );
     }
     return filtered;
   }, []);
@@ -236,6 +240,21 @@ const OpportunityListScreen = ({ navigation }) => {
         </View>
 
         <Text style={styles.cardTitle}>{item.title}</Text>
+        {item.createdBy && (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); navigation.navigate('PublisherProfile', { publisherId: item.createdBy._id }); }}
+            style={styles.publisherRow}
+          >
+            {item.createdBy.profileImage ? (
+              <Image source={{ uri: `${BASE_URL}/${item.createdBy.profileImage}` }} style={styles.publisherThumb} />
+            ) : (
+              <View style={styles.publisherThumbPlaceholder}>
+                <Text style={styles.publisherThumbText}>{item.createdBy.name?.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            <Text style={styles.publisherName}>{item.createdBy.name}</Text>
+          </TouchableOpacity>
+        )}
         {item.organization ? <Text style={styles.cardDetail}>🏢 {item.organization}</Text> : null}
         <Text style={styles.cardDetail}>📍 {item.location}</Text>
         <Text style={styles.cardDetail}>
@@ -401,11 +420,9 @@ const OpportunityListScreen = ({ navigation }) => {
             ) : favLists.length === 0 ? (
               <View style={styles.noListsContainer}>
                 <Text style={styles.noListsText}>You don't have any lists yet.</Text>
-                <TouchableOpacity style={styles.favActionBtn} onPress={createDefaultAndAdd}>
-                  <Text style={styles.favActionBtnText}>Create "Favourites" list & Save</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.favSecondaryBtn} onPress={() => { setFavModalVisible(false); navigation.navigate('Favourites'); }}>
-                  <Text style={styles.favSecondaryBtnText}>Manage my lists</Text>
+                <Text style={styles.noListsSubText}>Create a favourites list first before saving opportunities.</Text>
+                <TouchableOpacity style={styles.favActionBtn} onPress={() => { setFavModalVisible(false); navigation.navigate('Favourites'); }}>
+                  <Text style={styles.favActionBtnText}>Go to My Favourites to create a list</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -470,6 +487,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#333' },
   sectionCount: { fontSize: 13, color: '#888' },
   // Card
+  publisherRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 },
+  publisherThumb: { width: 22, height: 22, borderRadius: 11 },
+  publisherThumbPlaceholder: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#e9ecef', justifyContent: 'center', alignItems: 'center' },
+  publisherThumbText: { fontSize: 11, fontWeight: 'bold', color: '#666' },
+  publisherName: { fontSize: 12, color: '#2e86de', fontWeight: '600' },
+  noListsSubText: { fontSize: 13, color: '#888', textAlign: 'center', marginBottom: 16, marginTop: 6 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#2e86de' },
   cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
   cardImagePlaceholder: { width: '100%', height: 90, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },

@@ -27,11 +27,9 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
-  const register = async (name, email, password, phone) => {
+  const register = async (data) => {
     try {
-      const response = await api.post('/api/auth/register', {
-        name, email, password, phone, role: 'volunteer'
-      });
+      const response = await api.post('/api/auth/register', data);
       const { token, user } = response.data;
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(user));
@@ -39,7 +37,8 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       return { success: true };
     } catch (error) {
-return { success: false, message: error.response?.data?.message || error.message || 'Register failed' };    }
+      return { success: false, message: error.response?.data?.message || error.message || 'Register failed' };
+    }
   };
 
   const login = async (email, password) => {

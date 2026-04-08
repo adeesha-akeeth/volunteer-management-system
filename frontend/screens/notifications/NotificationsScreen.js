@@ -11,7 +11,10 @@ const typeIcon = {
   new_application: '🔔',
   donation_status: '💰',
   donation_received: '💵',
-  contribution_received: '⏱'
+  contribution_received: '⏱',
+  comment_reply: '💬',
+  comment_like: '👍',
+  follow_new_opportunity: '🌟'
 };
 
 const NotificationsScreen = ({ navigation }) => {
@@ -48,13 +51,49 @@ const NotificationsScreen = ({ navigation }) => {
     } catch {}
   };
 
+  const handlePress = (notification) => {
+    // Mark as read immediately for live count update
+    if (!notification.read) {
+      markRead(notification._id);
+    }
+
+    const relId = notification.relatedId;
+
+    switch (notification.type) {
+      case 'application_status':
+        navigation.getParent()?.navigate('Profile', { screen: 'MyApplications' });
+        break;
+
+      case 'new_application':
+      case 'contribution_received':
+      case 'donation_received':
+        if (relId) navigation.navigate('CreatorOpportunityDetail', { opportunityId: relId });
+        break;
+
+      case 'donation_status':
+        navigation.getParent()?.navigate('Donations', { screen: 'MyDonations' });
+        break;
+
+      case 'comment_reply':
+      case 'comment_like':
+      case 'follow_new_opportunity':
+        if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });
+        break;
+
+      default:
+        break;
+    }
+  };
+
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <View style={styles.container}>
-      {notifications.some(n => !n.read) && (
+      {unreadCount > 0 && (
         <TouchableOpacity style={styles.markAllBtn} onPress={markAllRead}>
-          <Text style={styles.markAllText}>Mark all as read</Text>
+          <Text style={styles.markAllText}>Mark all as read ({unreadCount})</Text>
         </TouchableOpacity>
       )}
       <FlatList
@@ -70,7 +109,8 @@ const NotificationsScreen = ({ navigation }) => {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[styles.item, !item.read && styles.itemUnread]}
-            onPress={() => markRead(item._id)}
+            onPress={() => handlePress(item)}
+            activeOpacity={0.75}
           >
             <Text style={styles.icon}>{typeIcon[item.type] || '🔔'}</Text>
             <View style={styles.itemBody}>

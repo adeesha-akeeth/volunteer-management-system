@@ -28,7 +28,7 @@ import SubmitFeedbackScreen from './screens/feedback/SubmitFeedbackScreen';
 // Profile Screen
 import ProfileScreen from './screens/profile/ProfileScreen';
 
-// Impact Screens (replaces Certificates)
+// Impact Screens
 import ImpactScreen from './screens/impact/ImpactScreen';
 import OngoingOpportunitiesScreen from './screens/impact/OngoingOpportunitiesScreen';
 import PastVolunteeringScreen from './screens/impact/PastVolunteeringScreen';
@@ -47,6 +47,13 @@ import DonateScreen from './screens/donation/DonateScreen';
 // Favourites Screens
 import FavouritesScreen from './screens/favourites/FavouritesScreen';
 import FavouriteDetailScreen from './screens/favourites/FavouriteDetailScreen';
+
+// Publisher Screens
+import PublisherProfileScreen from './screens/publisher/PublisherProfileScreen';
+import FindPublishersScreen from './screens/publisher/FindPublishersScreen';
+
+// Contribution Screens
+import AllContributionsScreen from './screens/contribution/AllContributionsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -104,6 +111,7 @@ const HomeStack = () => (
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
+    <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
   </Stack.Navigator>
 );
 
@@ -113,6 +121,8 @@ const FavouritesStack = () => (
     <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
     <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
+    <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
+    <Stack.Screen name="FindPublishers" component={FindPublishersScreen} options={{ title: 'Find Publishers' }} />
   </Stack.Navigator>
 );
 
@@ -126,6 +136,8 @@ const ProfileStack = () => (
     <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
     <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
     <Stack.Screen name="MyLikesComments" component={MyLikesCommentsScreen} options={{ title: 'My Likes & Comments' }} />
+    <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
+    <Stack.Screen name="AllContributions" component={AllContributionsScreen} options={{ title: 'Manage Contributions' }} />
   </Stack.Navigator>
 );
 

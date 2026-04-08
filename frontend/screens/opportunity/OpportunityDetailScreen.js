@@ -394,7 +394,9 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         <Text style={styles.detail}>📍 {opportunity.location}</Text>
         <Text style={styles.detail}>📅 {formatDateRange(opportunity)}</Text>
         <Text style={styles.detail}>👥 {opportunity.spotsAvailable} spots available</Text>
-        <Text style={styles.detail}>👤 Posted by: {opportunity.createdBy?.name}</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('PublisherProfile', { publisherId: opportunity.createdBy?._id })}>
+          <Text style={[styles.detail, styles.publisherLink]}>👤 Posted by: {opportunity.createdBy?.name}</Text>
+        </TouchableOpacity>
         {opportunity.responsibleName ? <Text style={styles.detail}>🙋 {opportunity.responsibleName}</Text> : null}
         {opportunity.responsibleEmail ? <Text style={styles.detail}>✉️ {opportunity.responsibleEmail}</Text> : null}
         {opportunity.responsiblePhone ? <Text style={styles.detail}>📞 {opportunity.responsiblePhone}</Text> : null}
@@ -623,6 +625,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
   detail: { fontSize: 15, color: '#555', marginBottom: 7 },
+  publisherLink: { color: '#2e86de', textDecorationLine: 'underline' },
   description: { fontSize: 16, color: '#555', lineHeight: 24 },
   fundraiserCard: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
   fundraiserCardDone: { borderLeftColor: '#888', backgroundColor: '#fafafa' },

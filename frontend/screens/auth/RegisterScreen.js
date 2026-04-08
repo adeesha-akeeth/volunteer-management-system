@@ -2,8 +2,9 @@ import React, { useState, useContext } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert,
-  KeyboardAvoidingView, Platform, ScrollView
+  KeyboardAvoidingView, Platform, ScrollView, Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { AuthContext } from '../../context/AuthContext';
 
 const COUNTRY_CODES = [
@@ -31,14 +32,21 @@ const RegisterScreen = ({ navigation }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState(null);
   const [loading, setLoading] = useState(false);
   const { register } = useContext(AuthContext);
 
   const pwError = password.length > 0 ? validatePassword(password) : null;
 
   const handlePhoneChange = (text) => {
-    // Only allow digits
     setPhone(text.replace(/[^0-9]/g, ''));
+  };
+
+  const pickPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission required', 'Please allow access to your photo library'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+    if (!result.canceled) setProfilePhoto(result.assets[0]);
   };
 
   const handleRegister = async () => {
@@ -58,7 +66,20 @@ const RegisterScreen = ({ navigation }) => {
     }
     setLoading(true);
     const fullPhone = `${countryCode}${phone}`;
-    const result = await register(name, email, password, fullPhone);
+
+    const fd = new FormData();
+    fd.append('name', name.trim());
+    fd.append('email', email.trim().toLowerCase());
+    fd.append('password', password);
+    fd.append('phone', fullPhone);
+    fd.append('role', 'volunteer');
+    if (profilePhoto) {
+      const filename = profilePhoto.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      fd.append('photo', { uri: profilePhoto.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
+    }
+
+    const result = await register(fd);
     setLoading(false);
     if (!result.success) {
       Alert.alert('Registration Failed', result.message);
@@ -70,6 +91,18 @@ const RegisterScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join us as a volunteer today</Text>
+
+        {/* Profile Photo */}
+        <TouchableOpacity style={styles.photoPicker} onPress={pickPhoto}>
+          {profilePhoto ? (
+            <Image source={{ uri: profilePhoto.uri }} style={styles.photoPreview} />
+          ) : (
+            <View style={styles.photoPlaceholder}>
+              <Text style={styles.photoPlaceholderIcon}>📷</Text>
+              <Text style={styles.photoPlaceholderText}>Add Profile Photo{'\n'}(optional)</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         <Text style={styles.label}>Full Name</Text>
         <TextInput
@@ -151,7 +184,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8' },
   inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 30, paddingVertical: 40 },
   title: { fontSize: 32, fontWeight: 'bold', color: '#2e86de', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 30 },
+  subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 20 },
+
+  photoPicker: { alignItems: 'center', marginBottom: 20 },
+  photoPreview: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: '#2e86de' },
+  photoPlaceholder: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#e9ecef', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#dee2e6', borderStyle: 'dashed' },
+  photoPlaceholderIcon: { fontSize: 24 },
+  photoPlaceholderText: { fontSize: 10, color: '#888', textAlign: 'center', marginTop: 2 },
+
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 5 },
   input: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
   phoneRow: { flexDirection: 'row', marginBottom: 15, gap: 8 },
