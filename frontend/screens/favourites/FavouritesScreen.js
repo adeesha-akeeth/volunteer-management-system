@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
   ActivityIndicator, Alert, TouchableOpacity,
@@ -11,7 +11,6 @@ import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
-// Defined outside to prevent re-mount bug
 const ListFormModal = ({ visible, title, name, description, onChangeName, onChangeDescription, onSubmit, onCancel, submitting }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
     <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -35,10 +34,18 @@ const ListFormModal = ({ visible, title, name, description, onChangeName, onChan
 );
 
 const FavouritesScreen = ({ navigation }) => {
-  const [lists, setLists] = useState([]);
+  const [activeTab, setActiveTab] = useState('feed');
+
+  // Feed state
+  const [feed, setFeed] = useState([]);
   const [following, setFollowing] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [feedRefreshing, setFeedRefreshing] = useState(false);
+
+  // Lists state
+  const [lists, setLists] = useState([]);
+  const [listsLoading, setListsLoading] = useState(true);
+  const [listsRefreshing, setListsRefreshing] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -51,24 +58,47 @@ const FavouritesScreen = ({ navigation }) => {
   const [editDesc, setEditDesc] = useState('');
   const [editing, setEditing] = useState(false);
 
-  const fetchData = async () => {
+  const fetchFeed = async () => {
     try {
-      const [listsRes, followingRes] = await Promise.all([
-        api.get('/api/favourites'),
+      const [feedRes, followingRes] = await Promise.all([
+        api.get('/api/follows/feed').catch(() => ({ data: [] })),
         api.get('/api/follows/mine').catch(() => ({ data: [] }))
       ]);
-      setLists(listsRes.data);
+      setFeed(feedRes.data || []);
       setFollowing(followingRes.data || []);
     } catch {
-      Alert.alert('Error', 'Failed to load favourites');
+      // silent fail for feed
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setFeedLoading(false);
+      setFeedRefreshing(false);
     }
   };
 
-  useFocusEffect(useCallback(() => { fetchData(); }, []));
-  const onRefresh = () => { setRefreshing(true); fetchData(); };
+  const fetchLists = async () => {
+    try {
+      const res = await api.get('/api/favourites');
+      setLists(res.data);
+    } catch {
+      Alert.alert('Error', 'Failed to load favourites');
+    } finally {
+      setListsLoading(false);
+      setListsRefreshing(false);
+    }
+  };
+
+  useFocusEffect(useCallback(() => {
+    fetchFeed();
+    fetchLists();
+  }, []));
+
+  const handleVote = async (opp, vote) => {
+    try {
+      const res = await api.post('/api/votes', { targetId: opp._id, targetType: 'opportunity', vote });
+      setFeed(prev => prev.map(o =>
+        o._id === opp._id ? { ...o, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote } : o
+      ));
+    } catch {}
+  };
 
   const handleCreate = async () => {
     if (!createName.trim()) { Alert.alert('Required', 'Please enter a list name'); return; }
@@ -76,7 +106,7 @@ const FavouritesScreen = ({ navigation }) => {
     try {
       await api.post('/api/favourites', { name: createName.trim(), description: createDesc.trim() });
       setShowCreate(false); setCreateName(''); setCreateDesc('');
-      fetchData();
+      fetchLists();
     } catch { Alert.alert('Error', 'Failed to create list'); }
     finally { setCreating(false); }
   };
@@ -89,7 +119,7 @@ const FavouritesScreen = ({ navigation }) => {
     try {
       await api.put(`/api/favourites/${editingList._id}`, { name: editName.trim(), description: editDesc.trim() });
       setShowEdit(false); setEditingList(null);
-      fetchData();
+      fetchLists();
     } catch { Alert.alert('Error', 'Failed to update list'); }
     finally { setEditing(false); }
   };
@@ -98,98 +128,196 @@ const FavouritesScreen = ({ navigation }) => {
     Alert.alert('Delete List', `Delete "${list.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await api.delete(`/api/favourites/${list._id}`); fetchData(); }
+        try { await api.delete(`/api/favourites/${list._id}`); fetchLists(); }
         catch { Alert.alert('Error', 'Failed to delete list'); }
       }}
     ]);
   };
 
-  const recentFollowing = following.slice(0, 2);
+  const renderFeedItem = ({ item }) => {
+    const likeActive = item.userVote === 'like';
+    const dislikeActive = item.userVote === 'dislike';
+    const pubPhoto = item.createdBy?.profileImage ? `${BASE_URL}/${item.createdBy.profileImage}` : null;
+    const hasFundraisers = item.fundraisers?.length > 0;
 
-  const renderList = ({ item }) => (
-    <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('FavouriteDetail', { list: item })} activeOpacity={0.8}>
-      <View style={styles.cardIcon}><Text style={styles.cardIconText}>❤️</Text></View>
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        {item.description ? <Text style={styles.cardDescription} numberOfLines={1}>{item.description}</Text> : null}
-        <Text style={styles.cardCount}>{item.opportunities?.length || 0} saved</Text>
-      </View>
-      <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}><Text style={styles.actionBtnText}>✏️</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.deleteActionBtn]} onPress={() => handleDelete(item)}><Text style={styles.actionBtnText}>🗑️</Text></TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
-  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#e74c3c" /></View>;
-
-  return (
-    <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-
-      {/* Following section */}
-      <View style={styles.followingSection}>
-        <View style={styles.followingHeader}>
-          <Text style={styles.followingTitle}>Following Publishers</Text>
-          <TouchableOpacity style={styles.findBtn} onPress={() => navigation.navigate('FindPublishers')}>
-            <Ionicons name="search" size={14} color="#2e86de" />
-            <Text style={styles.findBtnText}>Find Publishers</Text>
-          </TouchableOpacity>
-        </View>
-
-        {following.length === 0 ? (
-          <View style={styles.noFollowing}>
-            <Text style={styles.noFollowingText}>You're not following anyone yet.</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('FindPublishers')}>
-              <Text style={styles.noFollowingLink}>Find publishers to follow →</Text>
-            </TouchableOpacity>
-          </View>
+    return (
+      <TouchableOpacity
+        style={styles.feedCard}
+        onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
+        activeOpacity={0.9}
+      >
+        {item.bannerImage ? (
+          <Image source={{ uri: `${BASE_URL}/${item.bannerImage}` }} style={styles.feedBanner} resizeMode="cover" />
         ) : (
-          <>
-            <View style={styles.followingCards}>
-              {recentFollowing.map(pub => {
-                const photoUri = pub.profileImage ? `${BASE_URL}/${pub.profileImage}` : null;
+          <View style={styles.feedBannerPlaceholder}><Text style={styles.feedBannerIcon}>🌍</Text></View>
+        )}
+
+        <View style={styles.feedBody}>
+          {/* Publisher row */}
+          <TouchableOpacity
+            style={styles.feedPubRow}
+            onPress={() => navigation.navigate('PublisherProfile', { publisherId: item.createdBy?._id })}
+          >
+            {pubPhoto ? (
+              <Image source={{ uri: pubPhoto }} style={styles.feedPubAvatar} />
+            ) : (
+              <View style={styles.feedPubAvatarPlaceholder}>
+                <Text style={styles.feedPubAvatarText}>{item.createdBy?.name?.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            <Text style={styles.feedPubName}>{item.createdBy?.name}</Text>
+            {item.category && <View style={styles.feedCategoryBadge}><Text style={styles.feedCategoryText}>{item.category}</Text></View>}
+          </TouchableOpacity>
+
+          <Text style={styles.feedTitle} numberOfLines={2}>{item.title}</Text>
+          {item.organization ? <Text style={styles.feedMeta}>🏢 {item.organization}</Text> : null}
+          <Text style={styles.feedMeta}>📍 {item.location}</Text>
+          {item.startDate && <Text style={styles.feedMeta}>📅 {new Date(item.startDate).toDateString()}</Text>}
+
+          {/* Fundraiser chips */}
+          {hasFundraisers && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fundraiserScroll}>
+              {item.fundraisers.filter(fr => fr.status === 'active').map(fr => {
+                const pct = fr.targetAmount > 0 ? Math.min(100, Math.round((fr.collectedAmount / fr.targetAmount) * 100)) : 0;
                 return (
-                  <TouchableOpacity
-                    key={pub._id}
-                    style={styles.pubCard}
-                    onPress={() => navigation.navigate('PublisherProfile', { publisherId: pub._id })}
-                  >
-                    {photoUri ? (
-                      <Image source={{ uri: photoUri }} style={styles.pubAvatar} />
-                    ) : (
-                      <View style={styles.pubAvatarPlaceholder}>
-                        <Text style={styles.pubAvatarText}>{pub.name?.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <Text style={styles.pubName} numberOfLines={1}>{pub.name}</Text>
-                    {pub.averageRating ? (
-                      <Text style={styles.pubRating}>⭐ {pub.averageRating}</Text>
-                    ) : (
-                      <Text style={styles.pubNoRating}>No ratings</Text>
-                    )}
-                  </TouchableOpacity>
+                  <View key={fr._id} style={styles.fundraiserChip}>
+                    <Text style={styles.fundraiserChipText}>💰 {fr.name}</Text>
+                    <Text style={styles.fundraiserChipPct}>{pct}% funded</Text>
+                  </View>
                 );
               })}
-            </View>
-            {following.length > 2 && (
-              <TouchableOpacity style={styles.viewMoreBtn} onPress={() => navigation.navigate('FindPublishers')}>
-                <Text style={styles.viewMoreText}>View all {following.length} following →</Text>
-              </TouchableOpacity>
-            )}
-          </>
-        )}
-      </View>
+            </ScrollView>
+          )}
 
-      {/* Favourites lists */}
-      <View style={styles.listsSection}>
-        <View style={styles.listsHeader}>
-          <Text style={styles.listsTitle}>My Lists</Text>
-          <TouchableOpacity style={styles.createButton} onPress={() => setShowCreate(true)}>
-            <Text style={styles.createButtonText}>+ New List</Text>
-          </TouchableOpacity>
+          {/* Actions */}
+          <View style={styles.feedActions}>
+            <TouchableOpacity
+              style={[styles.feedVoteBtn, likeActive && styles.feedVoteLikeActive]}
+              onPress={() => handleVote(item, 'like')}
+            >
+              <Text style={styles.feedVoteBtnText}>👍 {item.likes || 0}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.feedVoteBtn, dislikeActive && styles.feedVoteDislikeActive]}
+              onPress={() => handleVote(item, 'dislike')}
+            >
+              <Text style={styles.feedVoteBtnText}>👎 {item.dislikes || 0}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.feedCommentBtn}
+              onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
+            >
+              <Ionicons name="chatbubble-outline" size={15} color="#555" />
+              <Text style={styles.feedCommentBtnText}>Comments</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {lists.length === 0 ? (
+  const renderFeedTab = () => {
+    if (feedLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
+
+    return (
+      <FlatList
+        data={feed}
+        keyExtractor={item => item._id}
+        renderItem={renderFeedItem}
+        refreshControl={<RefreshControl refreshing={feedRefreshing} onRefresh={() => { setFeedRefreshing(true); fetchFeed(); }} />}
+        ListHeaderComponent={
+          <View>
+            {/* Following row */}
+            <View style={styles.followingHeader}>
+              <Text style={styles.followingTitle}>Following ({following.length})</Text>
+              <TouchableOpacity style={styles.manageBtn} onPress={() => navigation.navigate('FindPublishers', { followedOnly: true })}>
+                <Text style={styles.manageBtnText}>Manage →</Text>
+              </TouchableOpacity>
+            </View>
+
+            {following.length === 0 ? (
+              <View style={styles.noFollowing}>
+                <Text style={styles.noFollowingText}>You're not following anyone yet.</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('FindPublishers')}>
+                  <Text style={styles.noFollowingLink}>Find publishers to follow →</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.followingScroll} contentContainerStyle={{ gap: 10, paddingHorizontal: 15 }}>
+                {following.map(pub => {
+                  const photoUri = pub.profileImage ? `${BASE_URL}/${pub.profileImage}` : null;
+                  return (
+                    <TouchableOpacity
+                      key={pub._id}
+                      style={styles.pubChip}
+                      onPress={() => navigation.navigate('PublisherProfile', { publisherId: pub._id })}
+                    >
+                      {photoUri ? (
+                        <Image source={{ uri: photoUri }} style={styles.pubChipAvatar} />
+                      ) : (
+                        <View style={styles.pubChipAvatarPlaceholder}>
+                          <Text style={styles.pubChipAvatarText}>{pub.name?.charAt(0).toUpperCase()}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.pubChipName} numberOfLines={1}>{pub.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity style={styles.pubChipAdd} onPress={() => navigation.navigate('FindPublishers')}>
+                  <View style={styles.pubChipAddIcon}><Text style={styles.pubChipAddText}>+</Text></View>
+                  <Text style={styles.pubChipName}>Find More</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+            {feed.length > 0 && (
+              <Text style={styles.feedSectionLabel}>Recent posts from people you follow</Text>
+            )}
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyFeed}>
+            <Text style={styles.emptyFeedIcon}>📰</Text>
+            <Text style={styles.emptyFeedText}>No posts yet</Text>
+            <Text style={styles.emptyFeedSub}>Follow publishers to see their opportunities here.</Text>
+          </View>
+        }
+      />
+    );
+  };
+
+  const renderListsTab = () => {
+    if (listsLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#e74c3c" /></View>;
+
+    return (
+      <FlatList
+        data={lists}
+        keyExtractor={item => item._id}
+        refreshControl={<RefreshControl refreshing={listsRefreshing} onRefresh={() => { setListsRefreshing(true); fetchLists(); }} />}
+        ListHeaderComponent={
+          <View style={styles.listsHeader}>
+            <Text style={styles.listsTitle}>My Lists</Text>
+            <TouchableOpacity style={styles.createButton} onPress={() => setShowCreate(true)}>
+              <Text style={styles.createButtonText}>+ New List</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        contentContainerStyle={{ padding: 15 }}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('FavouriteDetail', { list: item })} activeOpacity={0.8}>
+            <View style={styles.cardIcon}><Text style={styles.cardIconText}>❤️</Text></View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{item.name}</Text>
+              {item.description ? <Text style={styles.cardDescription} numberOfLines={1}>{item.description}</Text> : null}
+              <Text style={styles.cardCount}>{item.opportunities?.length || 0} saved</Text>
+            </View>
+            <View style={styles.cardActions}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}><Text style={styles.actionBtnText}>✏️</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, styles.deleteActionBtn]} onPress={() => handleDelete(item)}><Text style={styles.actionBtnText}>🗑️</Text></TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>❤️</Text>
             <Text style={styles.emptyText}>No favourites lists yet</Text>
@@ -198,23 +326,32 @@ const FavouritesScreen = ({ navigation }) => {
               <Text style={styles.emptyCreateBtnText}>Create My First List</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          lists.map(item => (
-            <TouchableOpacity key={item._id} style={styles.card} onPress={() => navigation.navigate('FavouriteDetail', { list: item })} activeOpacity={0.8}>
-              <View style={styles.cardIcon}><Text style={styles.cardIconText}>❤️</Text></View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                {item.description ? <Text style={styles.cardDescription} numberOfLines={1}>{item.description}</Text> : null}
-                <Text style={styles.cardCount}>{item.opportunities?.length || 0} saved</Text>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}><Text style={styles.actionBtnText}>✏️</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.deleteActionBtn]} onPress={() => handleDelete(item)}><Text style={styles.actionBtnText}>🗑️</Text></TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
+        }
+      />
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Tab bar */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'feed' && styles.tabActive]}
+          onPress={() => setActiveTab('feed')}
+        >
+          <Ionicons name="newspaper-outline" size={16} color={activeTab === 'feed' ? '#2e86de' : '#888'} />
+          <Text style={[styles.tabText, activeTab === 'feed' && styles.tabTextActive]}>Feed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'lists' && styles.tabActive]}
+          onPress={() => setActiveTab('lists')}
+        >
+          <Ionicons name="bookmark-outline" size={16} color={activeTab === 'lists' ? '#e74c3c' : '#888'} />
+          <Text style={[styles.tabText, activeTab === 'lists' && styles.tabTextActiveRed]}>My Lists</Text>
+        </TouchableOpacity>
       </View>
+
+      {activeTab === 'feed' ? renderFeedTab() : renderListsTab()}
 
       <ListFormModal
         visible={showCreate} title="Create New List"
@@ -230,7 +367,7 @@ const FavouritesScreen = ({ navigation }) => {
         onSubmit={handleEdit} onCancel={() => { setShowEdit(false); setEditingList(null); }}
         submitting={editing}
       />
-    </ScrollView>
+    </View>
   );
 };
 
@@ -238,28 +375,65 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Following section
-  followingSection: { backgroundColor: '#fff', margin: 15, marginBottom: 8, borderRadius: 14, padding: 16, elevation: 2 },
-  followingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  followingTitle: { fontSize: 17, fontWeight: 'bold', color: '#333' },
-  findBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f0f4f8', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
-  findBtnText: { color: '#2e86de', fontWeight: 'bold', fontSize: 13 },
-  noFollowing: { alignItems: 'center', padding: 10 },
+  // Tabs
+  tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 6 },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: '#2e86de' },
+  tabText: { fontSize: 14, fontWeight: '600', color: '#888' },
+  tabTextActive: { color: '#2e86de' },
+  tabTextActiveRed: { color: '#e74c3c' },
+
+  // Feed tab
+  followingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingTop: 14, paddingBottom: 10 },
+  followingTitle: { fontSize: 15, fontWeight: 'bold', color: '#333' },
+  manageBtn: { backgroundColor: '#f0f4f8', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  manageBtnText: { color: '#2e86de', fontWeight: 'bold', fontSize: 13 },
+  noFollowing: { alignItems: 'center', padding: 20 },
   noFollowingText: { color: '#999', fontSize: 14, marginBottom: 6 },
   noFollowingLink: { color: '#2e86de', fontWeight: 'bold', fontSize: 14 },
-  followingCards: { flexDirection: 'row', gap: 10 },
-  pubCard: { flex: 1, backgroundColor: '#f8f9fa', borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#dee2e6' },
-  pubAvatar: { width: 50, height: 50, borderRadius: 25, marginBottom: 6 },
-  pubAvatarPlaceholder: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#e9ecef', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  pubAvatarText: { fontSize: 20, fontWeight: 'bold', color: '#666' },
-  pubName: { fontWeight: 'bold', fontSize: 13, color: '#333', textAlign: 'center', marginBottom: 2 },
-  pubRating: { fontSize: 12, color: '#f39c12' },
-  pubNoRating: { fontSize: 11, color: '#bbb' },
-  viewMoreBtn: { marginTop: 10, alignItems: 'center' },
-  viewMoreText: { color: '#2e86de', fontWeight: 'bold', fontSize: 14 },
+  followingScroll: { marginBottom: 4 },
+  pubChip: { alignItems: 'center', width: 68 },
+  pubChipAvatar: { width: 50, height: 50, borderRadius: 25, marginBottom: 5 },
+  pubChipAvatarPlaceholder: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#e9ecef', justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
+  pubChipAvatarText: { fontSize: 20, fontWeight: 'bold', color: '#666' },
+  pubChipName: { fontSize: 11, color: '#555', textAlign: 'center', fontWeight: '600' },
+  pubChipAdd: { alignItems: 'center', width: 68 },
+  pubChipAddIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center', marginBottom: 5, borderWidth: 1.5, borderColor: '#2e86de', borderStyle: 'dashed' },
+  pubChipAddText: { fontSize: 24, color: '#2e86de', fontWeight: 'bold' },
+  feedSectionLabel: { fontSize: 12, color: '#aaa', paddingHorizontal: 15, paddingTop: 8, paddingBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  // Lists section
-  listsSection: { paddingHorizontal: 15, paddingBottom: 30 },
+  feedCard: { backgroundColor: '#fff', borderRadius: 14, marginHorizontal: 15, marginBottom: 14, elevation: 3, overflow: 'hidden' },
+  feedBanner: { width: '100%', height: 150 },
+  feedBannerPlaceholder: { width: '100%', height: 80, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
+  feedBannerIcon: { fontSize: 32 },
+  feedBody: { padding: 14 },
+  feedPubRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  feedPubAvatar: { width: 30, height: 30, borderRadius: 15 },
+  feedPubAvatarPlaceholder: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#e9ecef', justifyContent: 'center', alignItems: 'center' },
+  feedPubAvatarText: { fontSize: 13, fontWeight: 'bold', color: '#666' },
+  feedPubName: { fontWeight: 'bold', color: '#555', fontSize: 13, flex: 1 },
+  feedCategoryBadge: { backgroundColor: '#e8f4fd', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  feedCategoryText: { color: '#2e86de', fontSize: 10, fontWeight: 'bold', textTransform: 'capitalize' },
+  feedTitle: { fontSize: 16, fontWeight: 'bold', color: '#222', marginBottom: 6 },
+  feedMeta: { fontSize: 12, color: '#666', marginBottom: 2 },
+  fundraiserScroll: { marginTop: 8, marginBottom: 4 },
+  fundraiserChip: { backgroundColor: '#fff8e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: '#ffe082' },
+  fundraiserChipText: { fontSize: 12, fontWeight: '600', color: '#e67e22' },
+  fundraiserChipPct: { fontSize: 10, color: '#888', marginTop: 1 },
+  feedActions: { flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center' },
+  feedVoteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f4f8', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  feedVoteLikeActive: { backgroundColor: '#d4efdf' },
+  feedVoteDislikeActive: { backgroundColor: '#fde8e8' },
+  feedVoteBtnText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  feedCommentBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 4 },
+  feedCommentBtnText: { fontSize: 13, color: '#555' },
+
+  emptyFeed: { alignItems: 'center', marginTop: 40, paddingHorizontal: 30 },
+  emptyFeedIcon: { fontSize: 48, marginBottom: 12 },
+  emptyFeedText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 6 },
+  emptyFeedSub: { fontSize: 14, color: '#999', textAlign: 'center' },
+
+  // Lists tab
   listsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   listsTitle: { fontSize: 17, fontWeight: 'bold', color: '#333' },
   createButton: { backgroundColor: '#e74c3c', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 8 },

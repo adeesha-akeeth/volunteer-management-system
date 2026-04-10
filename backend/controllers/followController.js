@@ -2,6 +2,7 @@ const Follow = require('../models/Follow');
 const Opportunity = require('../models/Opportunity');
 const PublisherRating = require('../models/PublisherRating');
 const User = require('../models/User');
+const Vote = require('../models/Vote');
 const mongoose = require('mongoose');
 
 const getPublisherStats = async (pubId) => {
@@ -55,11 +56,57 @@ const getMyFollowing = async (req, res) => {
         name: pub.name,
         profileImage: pub.profileImage,
         followedAt: f.createdAt,
+        isFollowing: true,
         ...stats
       };
     }));
 
     res.json(result.filter(Boolean));
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// GET /api/follows/feed — opportunities from followed publishers
+const getFollowFeed = async (req, res) => {
+  try {
+    const myFollowing = await Follow.find({ follower: req.user.id }).distinct('following');
+    if (myFollowing.length === 0) return res.json([]);
+
+    const opportunities = await Opportunity.find({ createdBy: { $in: myFollowing } })
+      .populate('createdBy', 'name profileImage')
+      .sort({ createdAt: -1 })
+      .limit(30);
+
+    const oppIds = opportunities.map(o => o._id);
+
+    const [likeAgg, dislikeAgg, myVotes] = await Promise.all([
+      Vote.aggregate([
+        { $match: { targetType: 'opportunity', targetId: { $in: oppIds }, vote: 'like' } },
+        { $group: { _id: '$targetId', count: { $sum: 1 } } }
+      ]),
+      Vote.aggregate([
+        { $match: { targetType: 'opportunity', targetId: { $in: oppIds }, vote: 'dislike' } },
+        { $group: { _id: '$targetId', count: { $sum: 1 } } }
+      ]),
+      Vote.find({ user: req.user.id, targetType: 'opportunity', targetId: { $in: oppIds } })
+    ]);
+
+    const likeMap = {};
+    likeAgg.forEach(l => { likeMap[l._id.toString()] = l.count; });
+    const dislikeMap = {};
+    dislikeAgg.forEach(d => { dislikeMap[d._id.toString()] = d.count; });
+    const voteMap = {};
+    myVotes.forEach(v => { voteMap[v.targetId.toString()] = v.vote; });
+
+    const result = opportunities.map(opp => ({
+      ...opp.toObject(),
+      likes: likeMap[opp._id.toString()] || 0,
+      dislikes: dislikeMap[opp._id.toString()] || 0,
+      userVote: voteMap[opp._id.toString()] || null
+    }));
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -97,4 +144,4 @@ const findPublishers = async (req, res) => {
   }
 };
 
-module.exports = { toggleFollow, getMyFollowing, findPublishers };
+module.exports = { toggleFollow, getMyFollowing, findPublishers, getFollowFeed };

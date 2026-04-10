@@ -127,7 +127,7 @@ const FavouritesStack = () => (
     <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
-    <Stack.Screen name="FindPublishers" component={FindPublishersScreen} options={{ title: 'Find Publishers' }} />
+    <Stack.Screen name="FindPublishers" component={FindPublishersScreen} options={({ route }) => ({ title: route.params?.followedOnly ? 'Following' : 'Find Publishers' })} />
   </Stack.Navigator>
 );
 

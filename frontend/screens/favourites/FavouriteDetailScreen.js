@@ -84,6 +84,7 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
       <TouchableOpacity
         style={styles.card}
         onPress={() => navigation.navigate('OpportunityDetail', { opportunityId: item._id })}
+        activeOpacity={0.9}
       >
         {item.bannerImage ? (
           <Image source={{ uri: `${BASE_URL}/${item.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
@@ -110,16 +111,15 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
               : 'Date not set'}
           </Text>
 
-          {/* Like/Dislike counts */}
-          <View style={styles.voteRow}>
+          {/* Actions row: votes + remove */}
+          <View style={styles.actionsRow}>
             <View style={styles.voteBadge}><Text style={styles.voteBadgeText}>👍 {extra.likes || 0}</Text></View>
             <View style={[styles.voteBadge, { backgroundColor: '#ffe8e8' }]}><Text style={[styles.voteBadgeText, { color: '#e74c3c' }]}>👎 {extra.dislikes || 0}</Text></View>
+            <TouchableOpacity style={styles.removeButton} onPress={() => handleRemove(item._id)}>
+              <Text style={styles.removeButtonText}>✕ Remove</Text>
+            </TouchableOpacity>
           </View>
         </View>
-
-        <TouchableOpacity style={styles.removeButton} onPress={() => handleRemove(item._id)}>
-          <Text style={styles.removeButtonText}>✕ Remove</Text>
-        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -178,11 +178,11 @@ const styles = StyleSheet.create({
   ratingText: { color: '#f39c12', fontSize: 11, fontWeight: 'bold' },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
   cardDetail: { fontSize: 13, color: '#555', marginBottom: 3 },
-  voteRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   voteBadge: { backgroundColor: '#e8f4fd', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
   voteBadgeText: { fontSize: 12, fontWeight: 'bold', color: '#2e86de' },
-  removeButton: { margin: 12, marginTop: 0, backgroundColor: '#ffe0e0', borderRadius: 8, padding: 8, alignItems: 'center' },
-  removeButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 13 },
+  removeButton: { marginLeft: 'auto', backgroundColor: '#ffe0e0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5 },
+  removeButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 12 },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
   emptySubText: { fontSize: 14, color: '#999', textAlign: 'center' }

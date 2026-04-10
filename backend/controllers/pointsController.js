@@ -11,12 +11,13 @@ const User = require('../models/User');
 const computePointsForUser = async (userId) => {
   const uid = new mongoose.Types.ObjectId(userId);
 
-  const [contribAgg, completedCount] = await Promise.all([
+  const [contribAgg, completedCount, contributionCount] = await Promise.all([
     Contribution.aggregate([
       { $match: { volunteer: uid, status: 'verified' } },
       { $group: { _id: null, totalHours: { $sum: '$hours' } } }
     ]),
-    Application.countDocuments({ volunteer: uid, status: 'completed' })
+    Application.countDocuments({ volunteer: uid, status: 'completed' }),
+    Contribution.countDocuments({ volunteer: uid, status: 'verified' })
   ]);
 
   const totalHours = contribAgg[0]?.totalHours || 0;
@@ -24,7 +25,7 @@ const computePointsForUser = async (userId) => {
   const completionPoints = completedCount * 300;
   const total = hoursPoints + completionPoints;
 
-  return { total, hoursPoints, completionPoints, totalHours, completedCount };
+  return { total, hoursPoints, completionPoints, totalHours, completedCount, contributionCount };
 };
 
 const getMyPoints = async (req, res) => {
@@ -122,4 +123,16 @@ const getMyPointsHistory = async (req, res) => {
   }
 };
 
-module.exports = { getMyPoints, getLeaderboard, getMyPointsHistory };
+const getPointsForUser = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    const data = await computePointsForUser(req.params.userId);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { getMyPoints, getLeaderboard, getMyPointsHistory, getPointsForUser };

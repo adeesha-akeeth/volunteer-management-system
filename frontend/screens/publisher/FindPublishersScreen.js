@@ -9,7 +9,9 @@ import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
-const FindPublishersScreen = ({ navigation }) => {
+const FindPublishersScreen = ({ navigation, route }) => {
+  const followedOnly = route.params?.followedOnly || false;
+
   const [publishers, setPublishers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -17,8 +19,17 @@ const FindPublishersScreen = ({ navigation }) => {
 
   const fetchPublishers = async (q = '') => {
     try {
-      const res = await api.get('/api/follows/publishers', { params: q ? { search: q } : {} });
-      setPublishers(res.data || []);
+      let res;
+      if (followedOnly) {
+        res = await api.get('/api/follows/mine');
+      } else {
+        res = await api.get('/api/follows/publishers', { params: q ? { search: q } : {} });
+      }
+      let data = res.data || [];
+      if (followedOnly && q) {
+        data = data.filter(p => p.name?.toLowerCase().includes(q.toLowerCase()));
+      }
+      setPublishers(data);
     } catch {
       Alert.alert('Error', 'Failed to load publishers');
     } finally {
@@ -37,9 +48,14 @@ const FindPublishersScreen = ({ navigation }) => {
     setFollowLoading(prev => ({ ...prev, [publisher._id]: true }));
     try {
       const res = await api.post(`/api/follows/${publisher._id}`);
-      setPublishers(prev => prev.map(p =>
-        p._id === publisher._id ? { ...p, isFollowing: res.data.following } : p
-      ));
+      if (followedOnly && !res.data.following) {
+        // Unfollow in "followed only" view — remove from list
+        setPublishers(prev => prev.filter(p => p._id !== publisher._id));
+      } else {
+        setPublishers(prev => prev.map(p =>
+          p._id === publisher._id ? { ...p, isFollowing: res.data.following } : p
+        ));
+      }
     } catch {
       Alert.alert('Error', 'Failed to update follow');
     } finally {
@@ -50,6 +66,7 @@ const FindPublishersScreen = ({ navigation }) => {
   const renderItem = ({ item }) => {
     const photoUri = item.profileImage ? `${BASE_URL}/${item.profileImage}` : null;
     const isLoading = followLoading[item._id];
+    const isFollowing = followedOnly ? true : item.isFollowing;
 
     return (
       <View style={styles.card}>
@@ -74,21 +91,21 @@ const FindPublishersScreen = ({ navigation }) => {
               )}
             </View>
             <Text style={styles.stats}>
-              {item.activeOpportunityCount} active · {item.opportunityCount} total
+              {item.opportunityCount} total opportunit{item.opportunityCount === 1 ? 'y' : 'ies'}
             </Text>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.followBtn, item.isFollowing && styles.followBtnActive]}
+          style={[styles.followBtn, isFollowing && styles.followBtnActive]}
           onPress={() => handleFollow(item)}
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator size="small" color={item.isFollowing ? '#2e86de' : '#fff'} />
+            <ActivityIndicator size="small" color={isFollowing ? '#2e86de' : '#fff'} />
           ) : (
-            <Text style={[styles.followBtnText, item.isFollowing && styles.followBtnTextActive]}>
-              {item.isFollowing ? '✓ Following' : '+ Follow'}
+            <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+              {isFollowing ? '✓ Following' : '+ Follow'}
             </Text>
           )}
         </TouchableOpacity>
@@ -102,7 +119,7 @@ const FindPublishersScreen = ({ navigation }) => {
         <Ionicons name="search" size={18} color="#999" style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search publishers by name..."
+          placeholder={followedOnly ? 'Search followed publishers...' : 'Search publishers by name...'}
           placeholderTextColor="#aaa"
           value={search}
           onChangeText={handleSearch}
@@ -125,7 +142,14 @@ const FindPublishersScreen = ({ navigation }) => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={60} color="#ddd" />
-              <Text style={styles.emptyText}>No publishers found</Text>
+              <Text style={styles.emptyText}>
+                {followedOnly ? "You're not following anyone yet" : 'No publishers found'}
+              </Text>
+              {followedOnly && (
+                <TouchableOpacity onPress={() => navigation.navigate('FindPublishers')}>
+                  <Text style={styles.emptyLink}>Find publishers to follow →</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
@@ -158,7 +182,8 @@ const styles = StyleSheet.create({
   followBtnTextActive: { color: '#2e86de' },
 
   empty: { alignItems: 'center', marginTop: 60 },
-  emptyText: { color: '#999', fontSize: 16, marginTop: 12 }
+  emptyText: { color: '#999', fontSize: 16, marginTop: 12 },
+  emptyLink: { color: '#2e86de', fontWeight: 'bold', fontSize: 14, marginTop: 8 }
 });
 
 export default FindPublishersScreen;

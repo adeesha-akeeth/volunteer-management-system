@@ -35,6 +35,7 @@ const PublisherProfileScreen = ({ route, navigation }) => {
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [userStats, setUserStats] = useState(null);
 
   const [myRating, setMyRating] = useState(null);
   const [ratingLoading, setRatingLoading] = useState(false);
@@ -48,15 +49,17 @@ const PublisherProfileScreen = ({ route, navigation }) => {
 
   const fetchData = async () => {
     try {
-      const [profileRes, reviewsRes] = await Promise.all([
+      const [profileRes, reviewsRes, statsRes] = await Promise.all([
         api.get(`/api/publisher/${publisherId}`),
-        api.get(`/api/publisher/${publisherId}/reviews`)
+        api.get(`/api/publisher/${publisherId}/reviews`),
+        api.get(`/api/points/user/${publisherId}`).catch(() => ({ data: null }))
       ]);
       setProfile(profileRes.data.publisher);
       setOpportunities(profileRes.data.opportunities || []);
       setIsFollowing(profileRes.data.isFollowing || false);
       setMyRating(profileRes.data.myRating || null);
       setReviews(reviewsRes.data || []);
+      setUserStats(statsRes.data);
     } catch {
       Alert.alert('Error', 'Failed to load publisher profile');
     } finally {
@@ -177,6 +180,7 @@ const PublisherProfileScreen = ({ route, navigation }) => {
         )}
         <Text style={styles.name}>{profile.name}</Text>
         <Text style={styles.email}>{profile.email}</Text>
+        {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
 
         <View style={styles.ratingRow}>
           <StarRow rating={profile.averageRating || 0} />
@@ -194,12 +198,34 @@ const PublisherProfileScreen = ({ route, navigation }) => {
             onPress={handleFollow}
             disabled={followLoading}
           >
-            {followLoading ? <ActivityIndicator size="small" color="#fff" /> : (
-              <Text style={styles.followBtnText}>{isFollowing ? '✓ Following' : '+ Follow'}</Text>
-            )}
+            {followLoading
+              ? <ActivityIndicator size="small" color={isFollowing ? '#2e86de' : '#fff'} />
+              : <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>{isFollowing ? '✓ Following' : '+ Follow'}</Text>
+            }
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Volunteer impact stats */}
+      {userStats && (userStats.total > 0 || userStats.contributionCount > 0 || userStats.completedCount > 0) && (
+        <View style={styles.statsCard}>
+          <Text style={styles.statsTitle}>Volunteer Impact</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{userStats.total || 0}</Text>
+              <Text style={styles.statLabel}>Total Points</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: '#27ae60' }]}>{userStats.contributionCount || 0}</Text>
+              <Text style={styles.statLabel}>Contributions</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: '#e67e22' }]}>{userStats.completedCount || 0}</Text>
+              <Text style={styles.statLabel}>Completed</Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Rate this publisher */}
       {!isSelf && user && (
@@ -351,9 +377,18 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   ratingText: { color: 'rgba(255,255,255,0.9)', fontSize: 13 },
   followerText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 14 },
+  bio: { color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', marginBottom: 8, fontStyle: 'italic', paddingHorizontal: 20 },
   followBtn: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1.5, borderColor: '#fff' },
   followBtnActive: { backgroundColor: '#fff' },
   followBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  followBtnTextActive: { color: '#2e86de' },
+
+  statsCard: { margin: 15, marginBottom: 0, backgroundColor: '#fff', borderRadius: 12, padding: 14, elevation: 2 },
+  statsTitle: { fontSize: 13, fontWeight: 'bold', color: '#9b59b6', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statBox: { flex: 1, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 10, alignItems: 'center' },
+  statValue: { fontSize: 20, fontWeight: 'bold', color: '#9b59b6' },
+  statLabel: { fontSize: 10, color: '#888', marginTop: 2, textAlign: 'center' },
 
   rateCard: { margin: 15, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 2 },
   rateTitle: { fontSize: 15, fontWeight: 'bold', color: '#333', marginBottom: 10 },
