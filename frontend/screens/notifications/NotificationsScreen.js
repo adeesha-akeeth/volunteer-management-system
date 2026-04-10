@@ -12,6 +12,7 @@ const typeIcon = {
   donation_status: '💰',
   donation_received: '💵',
   contribution_received: '⏱',
+  contribution_status: '✅',
   comment_reply: '💬',
   comment_like: '👍',
   follow_new_opportunity: '🌟'
@@ -65,9 +66,18 @@ const NotificationsScreen = ({ navigation }) => {
         break;
 
       case 'new_application':
-      case 'contribution_received':
       case 'donation_received':
         if (relId) navigation.navigate('CreatorOpportunityDetail', { opportunityId: relId });
+        break;
+
+      case 'contribution_received':
+        // Go to AllContributions so publisher can verify easily
+        navigation.getParent()?.navigate('Profile', { screen: 'AllContributions' });
+        break;
+
+      case 'contribution_status':
+        // Volunteer sees their ongoing opportunities to check status
+        if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });
         break;
 
       case 'donation_status':

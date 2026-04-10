@@ -6,7 +6,8 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     enum: [
       'application_status', 'new_application',
-      'donation_status', 'donation_received', 'contribution_received',
+      'donation_status', 'donation_received',
+      'contribution_received', 'contribution_status',
       'comment_reply', 'comment_like', 'follow_new_opportunity'
     ],
     required: true

@@ -11,7 +11,6 @@ const submitContribution = async (req, res) => {
       return res.status(400).json({ message: 'Hours must be at least 0.5' });
     }
 
-    // Must have an approved application
     const application = await Application.findOne({
       opportunity: opportunityId,
       volunteer: req.user.id,
@@ -35,13 +34,50 @@ const submitContribution = async (req, res) => {
         await Notification.create({
           recipient: opp.createdBy,
           type: 'contribution_received',
-          message: `A volunteer submitted ${hours} hours for "${opp.title}"`,
+          message: `A volunteer submitted ${hours} hrs for verification — "${opp.title}"`,
           relatedId: opp._id
         });
       }
     } catch {}
 
     res.status(201).json({ message: 'Contribution submitted for verification', contribution });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Volunteer updates their own PENDING contribution
+const updateMyContribution = async (req, res) => {
+  try {
+    const { hours, description } = req.body;
+    const contribution = await Contribution.findById(req.params.id);
+    if (!contribution) return res.status(404).json({ message: 'Contribution not found' });
+    if (contribution.volunteer.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    if (contribution.status !== 'pending') return res.status(400).json({ message: 'Can only edit pending contributions' });
+
+    if (hours !== undefined) {
+      if (isNaN(hours) || Number(hours) < 0.5) return res.status(400).json({ message: 'Hours must be at least 0.5' });
+      contribution.hours = Number(hours);
+    }
+    if (description !== undefined) contribution.description = description;
+    await contribution.save();
+
+    res.json({ message: 'Contribution updated', contribution });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Volunteer deletes their own PENDING contribution
+const deleteMyContribution = async (req, res) => {
+  try {
+    const contribution = await Contribution.findById(req.params.id);
+    if (!contribution) return res.status(404).json({ message: 'Contribution not found' });
+    if (contribution.volunteer.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    if (contribution.status !== 'pending') return res.status(400).json({ message: 'Can only delete pending contributions' });
+
+    await Contribution.deleteOne({ _id: req.params.id });
+    res.json({ message: 'Contribution deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -80,7 +116,7 @@ const getMyApprovedOpportunities = async (req, res) => {
   }
 };
 
-// Creator gets all contributions for their opportunity (grouped by volunteer)
+// Creator gets all contributions for their opportunity
 const getContributionsForOpportunity = async (req, res) => {
   try {
     const opp = await Opportunity.findById(req.params.opportunityId);
@@ -88,7 +124,7 @@ const getContributionsForOpportunity = async (req, res) => {
     if (opp.createdBy.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
 
     const contributions = await Contribution.find({ opportunity: req.params.opportunityId })
-      .populate('volunteer', 'name email')
+      .populate('volunteer', 'name email profileImage')
       .sort({ createdAt: -1 });
 
     res.json(contributions);
@@ -113,6 +149,22 @@ const updateContributionStatus = async (req, res) => {
 
     contribution.status = status;
     await contribution.save();
+
+    // Notify the volunteer
+    try {
+      const pts = status === 'verified' ? Math.floor(contribution.hours * 10) : 0;
+      const msg = status === 'verified'
+        ? `✅ Your ${contribution.hours} hr contribution for "${contribution.opportunity.title}" was verified! You earned ${pts} pts.`
+        : `❌ Your contribution for "${contribution.opportunity.title}" was not verified.`;
+      await Notification.create({
+        recipient: contribution.volunteer,
+        type: 'contribution_status',
+        message: msg,
+        relatedId: contribution.opportunity._id,
+        relatedType: 'opportunity'
+      });
+    } catch {}
+
     res.json({ message: `Contribution ${status}`, contribution });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -141,14 +193,14 @@ const getMyCompletedOpportunities = async (req, res) => {
   }
 };
 
-// Creator gets all pending contributions across all their opportunities
+// Creator gets all contributions across all their opportunities
 const getAllContributionsForCreator = async (req, res) => {
   try {
     const myOpps = await Opportunity.find({ createdBy: req.user.id }, '_id title');
     const myOppIds = myOpps.map(o => o._id);
 
     const contributions = await Contribution.find({ opportunity: { $in: myOppIds } })
-      .populate('volunteer', 'name email')
+      .populate('volunteer', 'name email profileImage')
       .populate('opportunity', 'title')
       .sort({ status: 1, createdAt: -1 });
 
@@ -160,6 +212,8 @@ const getAllContributionsForCreator = async (req, res) => {
 
 module.exports = {
   submitContribution,
+  updateMyContribution,
+  deleteMyContribution,
   getMyContributions,
   getMyApprovedOpportunities,
   getMyCompletedOpportunities,

@@ -147,9 +147,9 @@ const updateApplicationStatus = async (req, res) => {
     try {
       const opp = await Opportunity.findById(application.opportunity).select('title');
       const msgs = {
-        approved: `Your application for "${opp?.title}" has been approved!`,
-        rejected: `Your application for "${opp?.title}" was not selected.`,
-        completed: `Your volunteering for "${opp?.title}" has been marked as completed.`
+        approved: `✅ Your application for "${opp?.title}" has been approved! You can now log contribution hours.`,
+        rejected: `Your application for "${opp?.title}" was not selected this time.`,
+        completed: `🎖️ Your volunteering for "${opp?.title}" has been marked as completed! You earned 300 pts.`
       };
       if (msgs[status]) {
         await Notification.create({

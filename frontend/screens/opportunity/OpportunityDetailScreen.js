@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, Alert, Image, TextInput, Modal, FlatList,
@@ -17,7 +17,7 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
     setReplyingTo, replyingTo,
     setExpandedReplies, expandedReplies,
     handleAddReply, replyText, setReplyText, replySubmitting,
-    openEditComment
+    openEditComment, scrollToEnd
   } = handlers;
 
   const isOwn = item.author?._id === userId || item.author?.id === userId;
@@ -73,7 +73,11 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
         {!parentId && (
           <TouchableOpacity
             style={styles.replyBtn}
-            onPress={() => setReplyingTo(replyingTo?.id === item._id ? null : { id: item._id, authorName: item.author?.name })}
+            onPress={() => {
+              const opening = replyingTo?.id !== item._id;
+              setReplyingTo(opening ? { id: item._id, authorName: item.author?.name } : null);
+              if (opening) setTimeout(() => scrollToEnd?.(), 150);
+            }}
           >
             <Text style={styles.replyBtnText}>↩ Reply</Text>
           </TouchableOpacity>
@@ -143,6 +147,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [replyText, setReplyText] = useState('');
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState({});
+
+  const scrollViewRef = useRef(null);
 
   // Opportunity rating (separate from comments)
   const [userRating, setUserRating] = useState(null);
@@ -370,7 +376,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     setReplyingTo, replyingTo,
     setExpandedReplies, expandedReplies,
     handleAddReply, replyText, setReplyText, replySubmitting,
-    openEditComment
+    openEditComment,
+    scrollToEnd: () => scrollViewRef.current?.scrollToEnd({ animated: true })
   };
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
@@ -380,8 +387,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const dislikeActive = opportunity.userVote === 'dislike';
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'android' ? 80 : 0}>
+    <ScrollView ref={scrollViewRef} style={styles.container} keyboardShouldPersistTaps="handled">
       {opportunity.bannerImage ? (
         <Image source={{ uri: `${BASE_URL}/${opportunity.bannerImage}` }} style={styles.bannerImage} resizeMode="cover" />
       ) : null}
@@ -522,7 +529,10 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
 
         {/* Post a comment */}
         {user && !showCommentForm && (
-          <TouchableOpacity style={styles.addCommentButton} onPress={() => setShowCommentForm(true)}>
+          <TouchableOpacity style={styles.addCommentButton} onPress={() => {
+            setShowCommentForm(true);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150);
+          }}>
             <Text style={styles.addCommentButtonText}>✍️ Write a Comment</Text>
           </TouchableOpacity>
         )}

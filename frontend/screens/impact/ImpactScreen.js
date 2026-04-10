@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, RefreshControl, FlatList
+  TouchableOpacity, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
 const ImpactScreen = ({ navigation }) => {
+  const toast = useToast();
   const [points, setPoints] = useState(null);
   const [leaderboard, setLeaderboard] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -27,7 +28,7 @@ const ImpactScreen = ({ navigation }) => {
       setLeaderboard(lbRes.data);
       setHistory(histRes.data || []);
     } catch {
-      Alert.alert('Error', 'Failed to load impact data');
+      toast.error('Error', 'Failed to load impact data');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -54,89 +55,72 @@ const ImpactScreen = ({ navigation }) => {
             <Text style={styles.heroBadgeLabel}>from hours</Text>
           </View>
           <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeIcon}>🤝</Text>
-            <Text style={styles.heroBadgeValue}>{points?.donationPoints || 0}</Text>
-            <Text style={styles.heroBadgeLabel}>from donations</Text>
-          </View>
-          <View style={styles.heroBadge}>
             <Text style={styles.heroBadgeIcon}>🎖️</Text>
             <Text style={styles.heroBadgeValue}>{points?.completionPoints || 0}</Text>
-            <Text style={styles.heroBadgeLabel}>volunteers helped</Text>
+            <Text style={styles.heroBadgeLabel}>completion bonus</Text>
           </View>
         </View>
       </View>
 
-      {/* Clear stats row */}
+      {/* Stats row */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{points?.totalHours || 0}</Text>
           <Text style={styles.statLabel}>⏱ Hours{'\n'}Verified</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue} numberOfLines={1}>LKR {(points?.totalDonated || 0).toLocaleString()}</Text>
-          <Text style={styles.statLabel}>🤝 Total{'\n'}Donated</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{points?.completedVolunteers || 0}</Text>
-          <Text style={styles.statLabel}>🎖️ Volunteers{'\n'}You Supported</Text>
+          <Text style={styles.statValue}>{points?.completedCount || 0}</Text>
+          <Text style={styles.statLabel}>🎖️ Completed{'\n'}Opportunities</Text>
         </View>
       </View>
 
       {/* How points work */}
       <View style={styles.rulesCard}>
         <Text style={styles.rulesTitle}>How Points Work</Text>
-        <Text style={styles.rulesItem}>⏱  10 pts per verified contribution hour</Text>
-        <Text style={styles.rulesItem}>🤝  1 pt per LKR 100 donated (confirmed)</Text>
-        <Text style={styles.rulesItem}>🎖️  100 pts per volunteer you helped complete</Text>
+        <Text style={styles.rulesItem}>⏱  <Text style={styles.rulesBold}>10 pts</Text> per verified contribution hour</Text>
+        <Text style={styles.rulesItem}>🎖️  <Text style={styles.rulesBold}>300 pts</Text> when marked as completed by publisher</Text>
       </View>
 
-      {/* Action buttons */}
-      <TouchableOpacity style={styles.volunteeringBtn} onPress={() => navigation.navigate('OngoingOpportunities')}>
-        <View style={styles.volunteeringBtnLeft}>
-          <Ionicons name="people-outline" size={28} color="#fff" />
+      {/* Log Contributions button — prominent CTA */}
+      <TouchableOpacity style={styles.logBtn} onPress={() => navigation.navigate('OngoingOpportunities')}>
+        <View style={styles.logBtnLeft}>
+          <View style={styles.logBtnIconCircle}>
+            <Ionicons name="add" size={28} color="#fff" />
+          </View>
           <View style={{ marginLeft: 14 }}>
-            <Text style={styles.volunteeringBtnTitle}>Active Volunteering</Text>
-            <Text style={styles.volunteeringBtnSubtitle}>Log hours for ongoing opportunities</Text>
+            <Text style={styles.logBtnTitle}>Log Contribution Hours</Text>
+            <Text style={styles.logBtnSubtitle}>Submit hours for verification & earn points</Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.8)" />
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.pastBtn} onPress={() => navigation.navigate('PastVolunteering')}>
-        <View style={styles.volunteeringBtnLeft}>
-          <Ionicons name="checkmark-circle-outline" size={28} color="#9b59b6" />
-          <View style={{ marginLeft: 14 }}>
-            <Text style={styles.pastBtnTitle}>Past Volunteering</Text>
-            <Text style={styles.pastBtnSubtitle}>View completed opportunities</Text>
-          </View>
-        </View>
-        <Ionicons name="chevron-forward" size={22} color="#9b59b6" />
-      </TouchableOpacity>
-
-      {/* Points History */}
+      {/* Points History — always visible */}
       <View style={styles.historyCard}>
-        <TouchableOpacity style={styles.historyHeader} onPress={() => setShowHistory(v => !v)}>
-          <View>
-            <Text style={styles.historyTitle}>📊 Points History</Text>
-            <Text style={styles.historySub}>{history.length} events</Text>
-          </View>
-          <Ionicons name={showHistory ? 'chevron-up' : 'chevron-down'} size={20} color="#555" />
-        </TouchableOpacity>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>📊 Points History</Text>
+          <Text style={styles.historySub}>{history.length} event{history.length !== 1 ? 's' : ''}</Text>
+        </View>
 
-        {showHistory && (
-          history.length === 0 ? (
-            <Text style={styles.noDataText}>No history yet — start volunteering!</Text>
-          ) : (
-            history.map((item, i) => (
-              <View key={i} style={styles.historyRow}>
-                <Text style={styles.historyIcon}>{item.icon}</Text>
+        {history.length === 0 ? (
+          <View style={styles.emptyHistory}>
+            <Text style={styles.emptyHistoryIcon}>🌱</Text>
+            <Text style={styles.emptyHistoryText}>No points yet</Text>
+            <Text style={styles.emptyHistorySub}>Start volunteering to earn points!</Text>
+          </View>
+        ) : (
+          history.map((item, i) => (
+            <View key={i} style={[styles.historyRow, i === history.length - 1 && { borderBottomWidth: 0 }]}>
+              <Text style={styles.historyIcon}>{item.icon}</Text>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.historyLabel} numberOfLines={2}>{item.label}</Text>
-                <View style={styles.historyPoints}>
-                  <Text style={styles.historyPtsText}>+{item.points}</Text>
-                </View>
+                <Text style={styles.historyDate}>{new Date(item.date).toDateString()}</Text>
               </View>
-            ))
-          )
+              <View style={styles.historyPoints}>
+                <Text style={styles.historyPtsText}>+{item.points} pts</Text>
+              </View>
+            </View>
+          ))
         )}
       </View>
 
@@ -191,39 +175,42 @@ const styles = StyleSheet.create({
   heroLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 6 },
   heroPoints: { color: '#fff', fontSize: 56, fontWeight: 'bold', lineHeight: 60 },
   heroSubLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 16, marginBottom: 20 },
-  heroBreakdown: { flexDirection: 'row', gap: 10 },
-  heroBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 12, alignItems: 'center', minWidth: 88 },
-  heroBadgeIcon: { fontSize: 20, marginBottom: 4 },
-  heroBadgeValue: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  heroBadgeLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 10, marginTop: 2, textAlign: 'center' },
+  heroBreakdown: { flexDirection: 'row', gap: 14 },
+  heroBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, padding: 14, alignItems: 'center', minWidth: 110 },
+  heroBadgeIcon: { fontSize: 22, marginBottom: 4 },
+  heroBadgeValue: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  heroBadgeLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 11, marginTop: 2, textAlign: 'center' },
 
-  statsRow: { flexDirection: 'row', gap: 8, padding: 15, paddingBottom: 0 },
-  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 12, alignItems: 'center', elevation: 2 },
-  statValue: { fontSize: 14, fontWeight: 'bold', color: '#9b59b6', textAlign: 'center' },
-  statLabel: { fontSize: 10, color: '#888', marginTop: 4, textAlign: 'center', lineHeight: 14 },
+  statsRow: { flexDirection: 'row', gap: 10, padding: 15, paddingBottom: 0 },
+  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', elevation: 2 },
+  statValue: { fontSize: 22, fontWeight: 'bold', color: '#9b59b6', textAlign: 'center' },
+  statLabel: { fontSize: 11, color: '#888', marginTop: 4, textAlign: 'center', lineHeight: 16 },
 
-  rulesCard: { margin: 15, marginBottom: 0, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#e0d0f0' },
-  rulesTitle: { fontSize: 14, fontWeight: 'bold', color: '#9b59b6', marginBottom: 8 },
-  rulesItem: { fontSize: 13, color: '#555', marginBottom: 4 },
+  rulesCard: { margin: 15, marginBottom: 0, backgroundColor: '#f8f4ff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#e0d0f0' },
+  rulesTitle: { fontSize: 13, fontWeight: 'bold', color: '#9b59b6', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  rulesItem: { fontSize: 13, color: '#555', marginBottom: 5 },
+  rulesBold: { fontWeight: 'bold', color: '#333' },
 
-  volunteeringBtn: { marginHorizontal: 15, marginTop: 15, backgroundColor: '#2e86de', borderRadius: 14, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
-  volunteeringBtnLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  volunteeringBtnTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
-  volunteeringBtnSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
-
-  pastBtn: { marginHorizontal: 15, marginTop: 10, backgroundColor: '#f8f4ff', borderRadius: 14, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 2, borderWidth: 1, borderColor: '#e0d0f0' },
-  pastBtnTitle: { color: '#9b59b6', fontSize: 17, fontWeight: 'bold' },
-  pastBtnSubtitle: { color: '#aaa', fontSize: 12, marginTop: 2 },
+  logBtn: { marginHorizontal: 15, marginTop: 15, backgroundColor: '#27ae60', borderRadius: 16, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
+  logBtnLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  logBtnIconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center' },
+  logBtnTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
+  logBtnSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
 
   historyCard: { margin: 15, marginTop: 15, backgroundColor: '#fff', borderRadius: 14, padding: 16, elevation: 2 },
-  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   historyTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  historySub: { fontSize: 12, color: '#888', marginTop: 2 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f5f5f5', gap: 10 },
-  historyIcon: { fontSize: 20, width: 28 },
-  historyLabel: { flex: 1, fontSize: 13, color: '#444' },
-  historyPoints: { backgroundColor: '#f8f4ff', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  historySub: { fontSize: 12, color: '#888' },
+  historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#f5f5f5', gap: 10 },
+  historyIcon: { fontSize: 22, width: 30 },
+  historyLabel: { flex: 1, fontSize: 13, color: '#444', lineHeight: 18 },
+  historyDate: { fontSize: 10, color: '#aaa', marginTop: 2 },
+  historyPoints: { backgroundColor: '#f8f4ff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
   historyPtsText: { color: '#9b59b6', fontWeight: 'bold', fontSize: 13 },
+  emptyHistory: { alignItems: 'center', paddingVertical: 24 },
+  emptyHistoryIcon: { fontSize: 36, marginBottom: 8 },
+  emptyHistoryText: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  emptyHistorySub: { fontSize: 13, color: '#999', marginTop: 4 },
 
   leaderboardCard: { margin: 15, marginTop: 0, backgroundColor: '#fff', borderRadius: 14, padding: 16, elevation: 3, marginBottom: 30 },
   leaderboardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },

@@ -1,51 +1,30 @@
 const mongoose = require('mongoose');
 const Contribution = require('../models/Contribution');
-const Donation = require('../models/Donation');
 const Opportunity = require('../models/Opportunity');
 const Application = require('../models/Application');
 const User = require('../models/User');
 
 // Points rules:
 // - 10 pts per verified contribution hour
-// - 1 pt per LKR 100 donated (confirmed)
-// - 100 pts per volunteer you accepted who reaches 'completed' status
+// - 300 pts when publisher marks you as 'completed'
 
 const computePointsForUser = async (userId) => {
   const uid = new mongoose.Types.ObjectId(userId);
 
-  // Opportunities created by this user
-  const myOpps = await Opportunity.find({ createdBy: uid }, '_id');
-  const myOppIds = myOpps.map(o => o._id);
-
-  const [contribAgg, donationAgg, completedCount] = await Promise.all([
+  const [contribAgg, completedCount] = await Promise.all([
     Contribution.aggregate([
       { $match: { volunteer: uid, status: 'verified' } },
       { $group: { _id: null, totalHours: { $sum: '$hours' } } }
     ]),
-    Donation.aggregate([
-      { $match: { donor: uid, status: 'confirmed' } },
-      { $group: { _id: null, totalAmount: { $sum: '$amount' } } }
-    ]),
-    Application.countDocuments({
-      opportunity: { $in: myOppIds },
-      status: 'completed'
-    })
+    Application.countDocuments({ volunteer: uid, status: 'completed' })
   ]);
 
   const totalHours = contribAgg[0]?.totalHours || 0;
-  const totalDonated = donationAgg[0]?.totalAmount || 0;
-
   const hoursPoints = Math.floor(totalHours * 10);
-  const donationPoints = Math.floor(totalDonated / 100);
-  const completionPoints = completedCount * 100;
-  const total = hoursPoints + donationPoints + completionPoints;
+  const completionPoints = completedCount * 300;
+  const total = hoursPoints + completionPoints;
 
-  return {
-    total, hoursPoints, donationPoints, completionPoints,
-    totalHours, totalDonated,
-    opportunitiesCreated: myOpps.length,
-    completedVolunteers: completedCount
-  };
+  return { total, hoursPoints, completionPoints, totalHours, completedCount };
 };
 
 const getMyPoints = async (req, res) => {
@@ -59,40 +38,15 @@ const getMyPoints = async (req, res) => {
 
 const getLeaderboard = async (req, res) => {
   try {
-    // Get all users
-    const allUsers = await User.find({}, '_id');
-    const allIds = allUsers.map(u => u._id);
-
-    // Aggregate contribution hours
     const contribAgg = await Contribution.aggregate([
       { $match: { status: 'verified' } },
       { $group: { _id: '$volunteer', totalHours: { $sum: '$hours' } } }
     ]);
 
-    // Aggregate donations
-    const donationAgg = await Donation.aggregate([
-      { $match: { status: 'confirmed' } },
-      { $group: { _id: '$donor', totalAmount: { $sum: '$amount' } } }
+    const completedAgg = await Application.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: { _id: '$volunteer', count: { $sum: 1 } } }
     ]);
-
-    // Aggregate completed volunteers per creator
-    const oppsByCreator = await Opportunity.aggregate([
-      { $group: { _id: '$createdBy', oppIds: { $push: '$_id' } } }
-    ]);
-    const creatorOppMap = {};
-    oppsByCreator.forEach(o => { creatorOppMap[o._id.toString()] = o.oppIds; });
-
-    const completedByCreator = {};
-    if (oppsByCreator.length > 0) {
-      const allOppIds = oppsByCreator.flatMap(o => o.oppIds);
-      const completedApps = await Application.aggregate([
-        { $match: { status: 'completed', opportunity: { $in: allOppIds } } },
-        { $lookup: { from: 'opportunities', localField: 'opportunity', foreignField: '_id', as: 'opp' } },
-        { $unwind: '$opp' },
-        { $group: { _id: '$opp.createdBy', count: { $sum: 1 } } }
-      ]);
-      completedApps.forEach(c => { completedByCreator[c._id.toString()] = c.count; });
-    }
 
     const pointsMap = {};
     const ensure = (id) => { if (!pointsMap[id]) pointsMap[id] = 0; };
@@ -101,15 +55,11 @@ const getLeaderboard = async (req, res) => {
       const id = c._id?.toString(); if (!id) return;
       ensure(id); pointsMap[id] += Math.floor((c.totalHours || 0) * 10);
     });
-    donationAgg.forEach(d => {
-      const id = d._id?.toString(); if (!id) return;
-      ensure(id); pointsMap[id] += Math.floor((d.totalAmount || 0) / 100);
-    });
-    Object.entries(completedByCreator).forEach(([id, count]) => {
-      ensure(id); pointsMap[id] += count * 100;
+    completedAgg.forEach(c => {
+      const id = c._id?.toString(); if (!id) return;
+      ensure(id); pointsMap[id] += c.count * 300;
     });
 
-    // Include current user even if they have 0 points
     if (!pointsMap[req.user.id]) pointsMap[req.user.id] = 0;
 
     const allUserIds = Object.keys(pointsMap);
@@ -139,18 +89,12 @@ const getLeaderboard = async (req, res) => {
 const getMyPointsHistory = async (req, res) => {
   try {
     const uid = new mongoose.Types.ObjectId(req.user.id);
-    const myOpps = await Opportunity.find({ createdBy: uid }, '_id title');
-    const myOppIds = myOpps.map(o => o._id);
 
-    const [contributions, donations, completedApps] = await Promise.all([
+    const [contributions, completedApps] = await Promise.all([
       Contribution.find({ volunteer: uid, status: 'verified' })
         .populate('opportunity', 'title')
-        .sort({ createdAt: -1 }),
-      Donation.find({ donor: uid, status: 'confirmed' })
-        .populate({ path: 'fundraiser', select: 'name' })
-        .sort({ createdAt: -1 }),
-      Application.find({ opportunity: { $in: myOppIds }, status: 'completed' })
-        .populate('volunteer', 'name')
+        .sort({ updatedAt: -1 }),
+      Application.find({ volunteer: uid, status: 'completed' })
         .populate('opportunity', 'title')
         .sort({ updatedAt: -1 })
     ]);
@@ -159,22 +103,15 @@ const getMyPointsHistory = async (req, res) => {
       ...contributions.map(c => ({
         type: 'hours',
         icon: '⏱',
-        label: `${c.hours} hrs verified — ${c.opportunity?.title || 'Opportunity'}`,
+        label: `${c.hours} hr${c.hours !== 1 ? 's' : ''} verified — ${c.opportunity?.title || 'Opportunity'}`,
         points: Math.floor(c.hours * 10),
         date: c.updatedAt || c.createdAt
-      })),
-      ...donations.map(d => ({
-        type: 'donation',
-        icon: '🤝',
-        label: `LKR ${d.amount.toLocaleString()} donated`,
-        points: Math.floor(d.amount / 100),
-        date: d.updatedAt || d.createdAt
       })),
       ...completedApps.map(a => ({
         type: 'completion',
         icon: '🎖️',
-        label: `${a.volunteer?.name || 'Volunteer'} completed — ${a.opportunity?.title || 'Opportunity'}`,
-        points: 100,
+        label: `Marked completed — ${a.opportunity?.title || 'Opportunity'}`,
+        points: 300,
         date: a.updatedAt || a.createdAt
       }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
