@@ -32,6 +32,22 @@ const applicationSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  applicantName: {
+    type: String,
+    default: ''
+  },
+  motivation: {
+    type: String,
+    default: ''
+  },
+  expectedHours: {
+    type: Number,
+    default: null
+  },
+  hopingToGain: {
+    type: String,
+    default: ''
+  },
   appliedAt: {
     type: Date,
     default: Date.now

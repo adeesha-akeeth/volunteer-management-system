@@ -26,6 +26,7 @@ const OpportunityListScreen = ({ navigation }) => {
   const [allOpportunities, setAllOpportunities] = useState([]); // full list from API
   const [opportunities, setOpportunities] = useState([]);       // filtered list
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);          // subtle tab switch indicator
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -52,7 +53,7 @@ const OpportunityListScreen = ({ navigation }) => {
     return filtered;
   }, []);
 
-  const fetchOpportunities = useCallback(async (tab = 'home', searchTerm = '', category = '') => {
+  const fetchOpportunities = useCallback(async (tab = 'home', searchTerm = '', category = '', isTabSwitch = false) => {
     try {
       const sort = tab === 'popular' ? 'popular' : tab === 'toprated' ? 'toprated' : '';
       let url = `/api/opportunities?`;
@@ -65,13 +66,15 @@ const OpportunityListScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setTabLoading(false);
     }
   }, [applyLocalFilter]);
 
   const isMounted = useRef(false);
 
   useEffect(() => {
-    setLoading(true);
+    // Only show full loading on first mount
+    if (!isMounted.current) setLoading(true);
     fetchOpportunities(activeTab, search, selectedCategory);
   }, [activeTab]);
 
@@ -115,9 +118,8 @@ const OpportunityListScreen = ({ navigation }) => {
     if (tab === activeTab) return;
     setSearch('');
     setSelectedCategory('');
-    setAllOpportunities([]);
-    setOpportunities([]);
-    setLoading(true);
+    // Show subtle loading indicator instead of full blank screen
+    setTabLoading(true);
     setActiveTab(tab);
   };
 
@@ -391,6 +393,13 @@ const OpportunityListScreen = ({ navigation }) => {
         <Text style={styles.createButtonText}>Post New Opportunity</Text>
       </TouchableOpacity>
 
+      {tabLoading && (
+        <View style={styles.tabLoadingBar}>
+          <ActivityIndicator size="small" color="#2e86de" />
+          <Text style={styles.tabLoadingText}>Loading...</Text>
+        </View>
+      )}
+
       <FlatList
         data={opportunities}
         keyExtractor={(item) => item._id}
@@ -526,6 +535,8 @@ const styles = StyleSheet.create({
   applyBadge: { backgroundColor: '#2e86de', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 5 },
   applyBadgeOwn: { backgroundColor: '#888' },
   applyBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  tabLoadingBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, gap: 8, backgroundColor: '#e8f4fd', borderRadius: 8, marginBottom: 6 },
+  tabLoadingText: { fontSize: 12, color: '#2e86de', fontWeight: '600' },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 15 },
   emptySubText: { fontSize: 14, color: '#999', marginTop: 5 },

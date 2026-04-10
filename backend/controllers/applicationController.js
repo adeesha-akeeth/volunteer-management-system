@@ -5,7 +5,7 @@ const Notification = require('../models/Notification');
 // Apply to an opportunity
 const applyToOpportunity = async (req, res) => {
   try {
-    const { opportunityId, coverLetter, phone, email } = req.body;
+    const { opportunityId, coverLetter, phone, email, applicantName, motivation, expectedHours, hopingToGain, useProfilePhoto } = req.body;
 
     const opportunity = await Opportunity.findById(opportunityId);
     if (!opportunity) {
@@ -34,7 +34,13 @@ const applyToOpportunity = async (req, res) => {
       return res.status(400).json({ message: 'You have already applied to this opportunity' });
     }
 
-    const photo = req.file ? req.file.path : '';
+    let photo = req.file ? req.file.path : '';
+    // If user chose to share their profile photo
+    if (!photo && useProfilePhoto === 'true') {
+      const User = require('../models/User');
+      const userDoc = await User.findById(req.user.id).select('profileImage');
+      if (userDoc?.profileImage) photo = userDoc.profileImage;
+    }
 
     const application = await Application.create({
       opportunity: opportunityId,
@@ -42,7 +48,11 @@ const applyToOpportunity = async (req, res) => {
       coverLetter,
       phone,
       email,
-      photo
+      photo,
+      applicantName: applicantName || '',
+      motivation: motivation || '',
+      expectedHours: expectedHours ? Number(expectedHours) : null,
+      hopingToGain: hopingToGain || ''
     });
 
     // Notify the opportunity creator

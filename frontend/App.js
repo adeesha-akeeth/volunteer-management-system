@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { ActivityIndicator, View, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ToastProvider } from './components/Toast';
 
 // Auth Screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -54,6 +55,10 @@ import FindPublishersScreen from './screens/publisher/FindPublishersScreen';
 
 // Contribution Screens
 import AllContributionsScreen from './screens/contribution/AllContributionsScreen';
+
+// Profile Extra Screens (new)
+import EditProfileScreen from './screens/profile/EditProfileScreen';
+import ChangePasswordScreen from './screens/profile/ChangePasswordScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -138,6 +143,9 @@ const ProfileStack = () => (
     <Stack.Screen name="MyLikesComments" component={MyLikesCommentsScreen} options={{ title: 'My Likes & Comments' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
     <Stack.Screen name="AllContributions" component={AllContributionsScreen} options={{ title: 'Manage Contributions' }} />
+    <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+    <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change Password' }} />
+    <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
   </Stack.Navigator>
 );
 
@@ -169,10 +177,12 @@ const RootNavigator = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" />
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
+      <ToastProvider>
+        <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" />
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </ToastProvider>
     </AuthProvider>
   );
 }

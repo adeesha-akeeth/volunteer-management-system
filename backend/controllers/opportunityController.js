@@ -7,6 +7,7 @@ const Application = require('../models/Application');
 const Follow = require('../models/Follow');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const OpportunityRating = require('../models/OpportunityRating');
 
 // Create a new opportunity
 const createOpportunity = async (req, res) => {
@@ -61,9 +62,9 @@ const createOpportunity = async (req, res) => {
 const attachExtras = async (opportunities, userId = null) => {
   const ids = opportunities.map(o => o._id || o.id);
 
-  // Star ratings from comments (only comments with a rating)
-  const ratings = await Comment.aggregate([
-    { $match: { opportunity: { $in: ids }, rating: { $ne: null } } },
+  // Star ratings from OpportunityRating model
+  const ratings = await OpportunityRating.aggregate([
+    { $match: { opportunity: { $in: ids } } },
     { $group: { _id: '$opportunity', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
   ]);
   const ratingsMap = {};
@@ -107,9 +108,14 @@ const attachExtras = async (opportunities, userId = null) => {
   });
 
   let userVotesMap = {};
+  let userRatingsMap = {};
   if (userId) {
-    const userVotes = await Vote.find({ user: userId, targetId: { $in: ids }, targetType: 'opportunity' });
+    const [userVotes, userRatings] = await Promise.all([
+      Vote.find({ user: userId, targetId: { $in: ids }, targetType: 'opportunity' }),
+      OpportunityRating.find({ rater: userId, opportunity: { $in: ids } })
+    ]);
     userVotes.forEach(v => { userVotesMap[v.targetId.toString()] = v.vote; });
+    userRatings.forEach(r => { userRatingsMap[r.opportunity.toString()] = r.rating; });
   }
 
   return opportunities.map(opp => {
@@ -124,7 +130,8 @@ const attachExtras = async (opportunities, userId = null) => {
       fundraisers: fundraisersMap[oppId] || [],
       likes: voteData.likes,
       dislikes: voteData.dislikes,
-      userVote: userVotesMap[oppId] || null
+      userVote: userVotesMap[oppId] || null,
+      userRating: userRatingsMap[oppId] || null
     };
   });
 };

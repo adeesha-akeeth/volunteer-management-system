@@ -64,7 +64,8 @@ const register = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
+        bio: user.bio || ''
       }
     });
   } catch (error) {
@@ -105,7 +106,8 @@ const login = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
+        bio: user.bio || ''
       }
     });
   } catch (error) {
@@ -126,8 +128,9 @@ const getProfile = async (req, res) => {
 // Update Profile
 const updateProfile = async (req, res) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, bio } = req.body;
     const updateData = { name, phone };
+    if (bio !== undefined) updateData.bio = bio;
     if (req.file) updateData.profileImage = req.file.path;
 
     const user = await User.findByIdAndUpdate(

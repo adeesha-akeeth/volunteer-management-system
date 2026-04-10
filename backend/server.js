@@ -84,6 +84,9 @@ app.use('/api/publisher', publisherRoutes);
 const followRoutes = require('./routes/followRoutes');
 app.use('/api/follows', followRoutes);
 
+const opportunityRatingRoutes = require('./routes/opportunityRatingRoutes');
+app.use('/api/opportunity-ratings', opportunityRatingRoutes);
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

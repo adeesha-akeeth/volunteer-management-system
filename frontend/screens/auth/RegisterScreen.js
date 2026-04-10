@@ -1,19 +1,12 @@
 import React, { useState, useContext } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert,
-  KeyboardAvoidingView, Platform, ScrollView, Image
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView,
+  Platform, ScrollView, Image
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { AuthContext } from '../../context/AuthContext';
-
-const COUNTRY_CODES = [
-  { code: '+94', label: 'LK +94' },
-  { code: '+1', label: 'US +1' },
-  { code: '+44', label: 'UK +44' },
-  { code: '+91', label: 'IN +91' },
-  { code: '+61', label: 'AU +61' },
-];
+import { useToast } from '../../components/Toast';
 
 const validatePassword = (password) => {
   if (password.length < 8) return 'At least 8 characters';
@@ -28,15 +21,30 @@ const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [countryCode, setCountryCode] = useState('+94');
-  const [showCodePicker, setShowCodePicker] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [loading, setLoading] = useState(false);
   const { register } = useContext(AuthContext);
+  const toast = useToast();
 
   const pwError = password.length > 0 ? validatePassword(password) : null;
+
+  const handleCountryCodeChange = (text) => {
+    // Always keep + at the start, only digits after
+    let cleaned = text.replace(/[^0-9+]/g, '');
+    if (!cleaned.startsWith('+')) cleaned = '+' + cleaned.replace(/\+/g, '');
+    else cleaned = '+' + cleaned.slice(1).replace(/\+/g, '');
+    setCountryCode(cleaned || '+');
+  };
+
+  const handleCountryCodeKeyPress = ({ nativeEvent }) => {
+    // Prevent deleting the '+' sign
+    if (nativeEvent.key === 'Backspace' && countryCode === '+') {
+      // do nothing
+    }
+  };
 
   const handlePhoneChange = (text) => {
     setPhone(text.replace(/[^0-9]/g, ''));
@@ -44,24 +52,32 @@ const RegisterScreen = ({ navigation }) => {
 
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission required', 'Please allow access to your photo library'); return; }
+    if (!perm.granted) { toast.error('Permission Required', 'Please allow access to your photo library'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7 });
     if (!result.canceled) setProfilePhoto(result.assets[0]);
   };
 
   const handleRegister = async () => {
     if (!name || !email || !phone || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      toast.error('Missing Fields', 'Please fill in all required fields');
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      toast.error('Invalid Email', 'Please enter a valid email address');
+      return;
+    }
+    if (countryCode.length < 2) {
+      toast.error('Invalid Country Code', 'Please enter a valid country code (e.g. +94)');
+      return;
+    }
+    if (phone.length < 7) {
+      toast.error('Invalid Phone', 'Please enter a valid phone number');
       return;
     }
     const err = validatePassword(password);
     if (err) {
-      Alert.alert('Weak Password', err);
+      toast.error('Weak Password', err);
       return;
     }
     setLoading(true);
@@ -82,7 +98,7 @@ const RegisterScreen = ({ navigation }) => {
     const result = await register(fd);
     setLoading(false);
     if (!result.success) {
-      Alert.alert('Registration Failed', result.message);
+      toast.error('Registration Failed', result.message);
     }
   };
 
@@ -104,7 +120,7 @@ const RegisterScreen = ({ navigation }) => {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.label}>Full Name</Text>
+        <Text style={styles.label}>Full Name *</Text>
         <TextInput
           style={styles.input}
           placeholder="e.g. John Silva"
@@ -113,7 +129,7 @@ const RegisterScreen = ({ navigation }) => {
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>Email Address</Text>
+        <Text style={styles.label}>Email Address *</Text>
         <TextInput
           style={styles.input}
           placeholder="e.g. john@email.com"
@@ -123,12 +139,22 @@ const RegisterScreen = ({ navigation }) => {
           keyboardType="email-address"
           autoCapitalize="none"
         />
+        {email.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && (
+          <Text style={styles.fieldError}>✗ Enter a valid email address</Text>
+        )}
 
-        <Text style={styles.label}>Phone Number</Text>
+        <Text style={styles.label}>Phone Number *</Text>
         <View style={styles.phoneRow}>
-          <TouchableOpacity style={styles.codeBtn} onPress={() => setShowCodePicker(!showCodePicker)}>
-            <Text style={styles.codeBtnText}>{countryCode} ▾</Text>
-          </TouchableOpacity>
+          <TextInput
+            style={styles.codeInput}
+            value={countryCode}
+            onChangeText={handleCountryCodeChange}
+            onKeyPress={handleCountryCodeKeyPress}
+            keyboardType="phone-pad"
+            maxLength={5}
+            placeholder="+94"
+            placeholderTextColor="#aaa"
+          />
           <TextInput
             style={styles.phoneInput}
             placeholder="7X XXX XXXX"
@@ -138,17 +164,9 @@ const RegisterScreen = ({ navigation }) => {
             keyboardType="number-pad"
           />
         </View>
-        {showCodePicker && (
-          <View style={styles.codePicker}>
-            {COUNTRY_CODES.map(c => (
-              <TouchableOpacity key={c.code} style={styles.codePickerItem} onPress={() => { setCountryCode(c.code); setShowCodePicker(false); }}>
-                <Text style={[styles.codePickerText, countryCode === c.code && styles.codePickerTextActive]}>{c.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <Text style={styles.phoneHint}>Type your country code (e.g. +94, +1, +44)</Text>
 
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>Password *</Text>
         <View style={[styles.passwordContainer, pwError && password.length > 0 && styles.inputError]}>
           <TextInput
             style={styles.passwordInput}
@@ -193,15 +211,12 @@ const styles = StyleSheet.create({
   photoPlaceholderText: { fontSize: 10, color: '#888', textAlign: 'center', marginTop: 2 },
 
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 5 },
-  input: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
-  phoneRow: { flexDirection: 'row', marginBottom: 15, gap: 8 },
-  codeBtn: { backgroundColor: '#fff', borderRadius: 10, padding: 15, borderWidth: 1, borderColor: '#ddd', justifyContent: 'center', minWidth: 80 },
-  codeBtnText: { color: '#333', fontWeight: 'bold', fontSize: 15, textAlign: 'center' },
+  input: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 4, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
+  fieldError: { color: '#e74c3c', fontSize: 12, marginBottom: 12, marginTop: 2 },
+  phoneRow: { flexDirection: 'row', marginBottom: 2, gap: 8 },
+  codeInput: { backgroundColor: '#fff', borderRadius: 10, padding: 15, borderWidth: 1, borderColor: '#ddd', color: '#333', fontWeight: 'bold', fontSize: 15, minWidth: 80, textAlign: 'center' },
   phoneInput: { flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 15, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
-  codePicker: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#ddd', marginBottom: 15, overflow: 'hidden' },
-  codePickerItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  codePickerText: { fontSize: 15, color: '#333' },
-  codePickerTextActive: { color: '#2e86de', fontWeight: 'bold' },
+  phoneHint: { fontSize: 11, color: '#aaa', marginBottom: 14 },
   passwordContainer: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#ddd', flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   inputError: { borderColor: '#e74c3c' },
   passwordInput: { flex: 1, padding: 15, fontSize: 16, color: '#333' },

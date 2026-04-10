@@ -55,15 +55,19 @@ const toggleVote = async (req, res) => {
 // Get current user's votes and comments for the "My Activity" page
 const getMyActivity = async (req, res) => {
   try {
-    const [votes, comments] = await Promise.all([
+    const [opportunityVotes, commentVotes, comments] = await Promise.all([
       Vote.find({ user: req.user.id, targetType: 'opportunity' })
-        .populate({ path: 'targetId', model: 'Opportunity', select: 'title' })
+        .populate({ path: 'targetId', model: 'Opportunity', select: 'title _id' })
+        .sort({ createdAt: -1 }),
+      Vote.find({ user: req.user.id, targetType: 'comment' })
+        .populate({ path: 'targetId', model: 'Comment', select: 'text opportunity', populate: { path: 'opportunity', select: 'title _id' } })
         .sort({ createdAt: -1 }),
       Comment.find({ author: req.user.id })
-        .populate('opportunity', 'title')
+        .populate('opportunity', 'title _id')
+        .populate({ path: 'parentCommentId', select: 'text author', populate: { path: 'author', select: 'name' } })
         .sort({ createdAt: -1 })
     ]);
-    res.json({ votes, comments });
+    res.json({ opportunityVotes, commentVotes, comments });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

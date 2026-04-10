@@ -144,21 +144,54 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState({});
 
+  // Opportunity rating (separate from comments)
+  const [userRating, setUserRating] = useState(null);
+  const [averageRating, setAverageRating] = useState(null);
+  const [ratingCount, setRatingCount] = useState(0);
+  const [ratingLoading, setRatingLoading] = useState(false);
+
   const fetchData = async () => {
     try {
-      const [oppRes, commentsRes] = await Promise.all([
+      const [oppRes, commentsRes, ratingRes] = await Promise.all([
         api.get(`/api/opportunities/${opportunityId}`),
-        api.get(`/api/comments/opportunity/${opportunityId}`)
+        api.get(`/api/comments/opportunity/${opportunityId}`),
+        api.get(`/api/opportunity-ratings/${opportunityId}`)
       ]);
       const opp = oppRes.data;
       setOpportunity(opp);
       setComments(commentsRes.data || []);
       setIsCreator(opp.createdBy?._id === user?.id);
       if (opp.endDate && new Date() > new Date(opp.endDate)) setIsPast(true);
+      setUserRating(ratingRes.data.userRating);
+      setAverageRating(ratingRes.data.averageRating);
+      setRatingCount(ratingRes.data.ratingCount);
     } catch {
       Alert.alert('Error', 'Failed to load opportunity details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRateOpportunity = async (star) => {
+    if (!user) { Alert.alert('Login required', 'Please login to rate'); return; }
+    setRatingLoading(true);
+    try {
+      if (userRating === star) {
+        // Toggle off = delete
+        const res = await api.delete(`/api/opportunity-ratings/${opportunityId}`);
+        setUserRating(null);
+        setAverageRating(res.data.averageRating);
+        setRatingCount(res.data.ratingCount);
+      } else {
+        const res = await api.post(`/api/opportunity-ratings/${opportunityId}`, { rating: star });
+        setUserRating(res.data.userRating);
+        setAverageRating(res.data.averageRating);
+        setRatingCount(res.data.ratingCount);
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to save rating');
+    } finally {
+      setRatingLoading(false);
     }
   };
 
@@ -212,7 +245,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       const fd = new FormData();
       fd.append('opportunityId', opportunityId);
       fd.append('text', commentText);
-      if (commentRating) fd.append('rating', commentRating.toString());
       if (commentPhoto) {
         const filename = commentPhoto.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
@@ -220,10 +252,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       }
       const res = await api.post('/api/comments', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setComments(prev => [...prev, res.data]);
-      setCommentText(''); setCommentRating(0); setCommentPhoto(null); setShowCommentForm(false);
-      // Refresh opportunity to get updated averageRating
-      const oppRes = await api.get(`/api/opportunities/${opportunityId}`);
-      setOpportunity(oppRes.data);
+      setCommentText(''); setCommentPhoto(null); setShowCommentForm(false);
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to post comment');
     } finally {
@@ -273,7 +302,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const openEditComment = (comment) => {
     setEditingComment(comment);
     setEditText(comment.text);
-    setEditRating(comment.rating || 0);
     setEditPhoto(null);
   };
 
@@ -283,7 +311,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     try {
       const fd = new FormData();
       fd.append('text', editText);
-      if (editRating) fd.append('rating', editRating.toString());
       if (editPhoto) {
         const filename = editPhoto.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
@@ -292,14 +319,10 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       const res = await api.put(`/api/comments/${editingComment._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const updated = res.data;
       setComments(prev => prev.map(c => {
-        if (c._id === editingComment._id) return { ...c, text: updated.text, rating: updated.rating, photo: updated.photo, isUpdated: true };
-        return { ...c, replies: c.replies.map(r => r._id === editingComment._id ? { ...r, text: updated.text, rating: updated.rating, photo: updated.photo, isUpdated: true } : r) };
+        if (c._id === editingComment._id) return { ...c, text: updated.text, photo: updated.photo, isUpdated: true };
+        return { ...c, replies: c.replies.map(r => r._id === editingComment._id ? { ...r, text: updated.text, photo: updated.photo, isUpdated: true } : r) };
       }));
       setEditingComment(null);
-      if (editRating) {
-        const oppRes = await api.get(`/api/opportunities/${opportunityId}`);
-        setOpportunity(oppRes.data);
-      }
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to update');
     } finally {
@@ -468,9 +491,34 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {/* Comments & Reviews (merged) */}
+      {/* Rate This Opportunity */}
+      {user && !isCreator && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Rate This Opportunity</Text>
+          <View style={styles.ratingRow}>
+            {averageRating ? (
+              <Text style={styles.avgRatingText}>⭐ {averageRating} avg ({ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'})</Text>
+            ) : (
+              <Text style={styles.noRatingText}>No ratings yet — be the first!</Text>
+            )}
+          </View>
+          <Text style={styles.ratingHint}>
+            {userRating ? `Your rating: ${userRating} star${userRating > 1 ? 's' : ''} — tap to change or tap again to remove` : 'Tap a star to rate:'}
+          </Text>
+          <View style={styles.ratingStars}>
+            {[1,2,3,4,5].map(star => (
+              <TouchableOpacity key={star} onPress={() => handleRateOpportunity(star)} disabled={ratingLoading}>
+                <Text style={styles.ratingStar}>{userRating >= star ? '⭐' : '☆'}</Text>
+              </TouchableOpacity>
+            ))}
+            {ratingLoading && <ActivityIndicator size="small" color="#f39c12" style={{ marginLeft: 8 }} />}
+          </View>
+        </View>
+      )}
+
+      {/* Comments */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Comments & Reviews {comments.length > 0 ? `(${comments.length})` : ''}</Text>
+        <Text style={styles.sectionTitle}>Comments {comments.length > 0 ? `(${comments.length})` : ''}</Text>
 
         {/* Post a comment */}
         {user && !showCommentForm && (
@@ -482,14 +530,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         {showCommentForm && (
           <View style={styles.commentForm}>
             <Text style={styles.formTitle}>Write a Comment</Text>
-            <Text style={styles.formLabel}>Rating (optional)</Text>
-            <View style={styles.starContainer}>
-              {[1,2,3,4,5].map(star => (
-                <TouchableOpacity key={star} onPress={() => setCommentRating(commentRating === star ? 0 : star)}>
-                  <Text style={styles.star}>{commentRating >= star ? '⭐' : '☆'}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
             <TextInput
               style={styles.formTextArea}
               placeholder="Share your thoughts..."
@@ -507,7 +547,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               <TouchableOpacity style={styles.submitCommentButton} onPress={handleAddComment} disabled={commentSubmitting}>
                 {commentSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>Post</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelCommentButton} onPress={() => { setShowCommentForm(false); setCommentText(''); setCommentRating(0); setCommentPhoto(null); }}>
+              <TouchableOpacity style={styles.cancelCommentButton} onPress={() => { setShowCommentForm(false); setCommentText(''); setCommentPhoto(null); }}>
                 <Text style={styles.cancelCommentText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -529,14 +569,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           <View style={styles.editModal} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHandle} />
             <Text style={styles.formTitle}>Edit Comment</Text>
-            <Text style={styles.formLabel}>Rating (optional)</Text>
-            <View style={styles.starContainer}>
-              {[1,2,3,4,5].map(star => (
-                <TouchableOpacity key={star} onPress={() => setEditRating(editRating === star ? 0 : star)}>
-                  <Text style={styles.star}>{editRating >= star ? '⭐' : '☆'}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
             <TextInput
               style={styles.formTextArea}
               value={editText}
@@ -653,6 +685,13 @@ const styles = StyleSheet.create({
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   deleteButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  // Rating section
+  ratingRow: { marginBottom: 6 },
+  avgRatingText: { fontSize: 15, color: '#f39c12', fontWeight: 'bold' },
+  noRatingText: { fontSize: 13, color: '#aaa' },
+  ratingHint: { fontSize: 12, color: '#888', marginBottom: 8 },
+  ratingStars: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  ratingStar: { fontSize: 34 },
   // Comments
   noFeedbackText: { color: '#999', fontSize: 14, textAlign: 'center', padding: 10 },
   addCommentButton: { marginBottom: 14, backgroundColor: '#9b59b6', borderRadius: 10, padding: 12, alignItems: 'center' },
