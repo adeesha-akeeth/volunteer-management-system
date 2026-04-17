@@ -4,6 +4,7 @@ import {
   ActivityIndicator, TouchableOpacity,
   RefreshControl, Image, ScrollView
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
@@ -94,7 +95,7 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
           <Image source={{ uri: `${BASE_URL}/${item.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
         ) : (
           <View style={styles.cardImagePlaceholder}>
-            <Text style={styles.placeholderText}>🌍</Text>
+            <Ionicons name="globe-outline" size={28} color="#aaa" />
           </View>
         )}
 
@@ -107,13 +108,24 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
           </View>
 
           <Text style={styles.cardTitle}>{item.title}</Text>
-          {item.organization ? <Text style={styles.cardDetail}>🏢 {item.organization}</Text> : null}
-          <Text style={styles.cardDetail}>📍 {item.location}</Text>
-          <Text style={styles.cardDetail}>
-            📅 {item.startDate
-              ? `${new Date(item.startDate).toDateString()} — ${new Date(item.endDate).toDateString()}`
-              : 'Date not set'}
-          </Text>
+          {item.organization ? (
+            <View style={styles.detailRow}>
+              <Ionicons name="business-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+              <Text style={styles.cardDetail}>{item.organization}</Text>
+            </View>
+          ) : null}
+          <View style={styles.detailRow}>
+            <Ionicons name="location-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+            <Text style={styles.cardDetail}>{item.location}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Ionicons name="calendar-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+            <Text style={styles.cardDetail}>
+              {item.startDate
+                ? `${new Date(item.startDate).toDateString()} — ${new Date(item.endDate).toDateString()}`
+                : 'Date not set'}
+            </Text>
+          </View>
 
           {/* Actions row: votes + remove */}
           <View style={styles.actionsRow}>
@@ -181,7 +193,8 @@ const styles = StyleSheet.create({
   ratingBadge: { backgroundColor: '#fff8e1', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   ratingText: { color: '#f39c12', fontSize: 11, fontWeight: 'bold' },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  cardDetail: { fontSize: 13, color: '#555', marginBottom: 3 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  cardDetail: { fontSize: 13, color: '#555', flex: 1 },
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   voteBadge: { backgroundColor: '#e8f4fd', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
   voteBadgeText: { fontSize: 12, fontWeight: 'bold', color: '#2e86de' },

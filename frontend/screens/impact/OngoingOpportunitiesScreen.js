@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator,
   RefreshControl, Image, Modal, TextInput
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
@@ -135,7 +136,7 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
           {opp.bannerImage ? (
             <Image source={{ uri: `${BASE_URL}/${opp.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
           ) : (
-            <View style={styles.cardImagePlaceholder}><Text style={styles.placeholderText}>🌍</Text></View>
+            <View style={styles.cardImagePlaceholder}><Ionicons name="globe-outline" size={28} color="#aaa" /></View>
           )}
         </TouchableOpacity>
 
@@ -144,8 +145,16 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'OpportunityDetail', params: { opportunityId: opp._id } })} activeOpacity={0.7}>
           <Text style={styles.cardTitle}>{opp.title}</Text>
           </TouchableOpacity>
-          {opp.organization ? <Text style={styles.cardDetail}>🏢 {opp.organization}</Text> : null}
-          <Text style={styles.cardDetail}>📍 {opp.location}</Text>
+          {opp.organization ? (
+            <View style={styles.detailRow}>
+              <Ionicons name="business-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+              <Text style={styles.cardDetail}>{opp.organization}</Text>
+            </View>
+          ) : null}
+          <View style={styles.detailRow}>
+            <Ionicons name="location-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+            <Text style={styles.cardDetail}>{opp.location}</Text>
+          </View>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
@@ -172,7 +181,10 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
                   <View style={styles.contribLeft}>
                     <View style={[styles.statusDot, { backgroundColor: statusColor(c.status) }]} />
                     <View>
-                      <Text style={styles.contribHours}>⏱ {c.hours} hr{c.hours !== 1 ? 's' : ''}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="time-outline" size={13} color="#555" style={{ marginRight: 4 }} />
+                        <Text style={styles.contribHours}>{c.hours} hr{c.hours !== 1 ? 's' : ''}</Text>
+                      </View>
                       {c.description ? <Text style={styles.contribDesc} numberOfLines={1}>{c.description}</Text> : null}
                     </View>
                   </View>
@@ -224,7 +236,7 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🌱</Text>
+            <Ionicons name="leaf-outline" size={48} color="#27ae60" style={styles.emptyIcon} />
             <Text style={styles.emptyText}>No active volunteering</Text>
             <Text style={styles.emptySubText}>Apply to opportunities and get accepted to log hours here.</Text>
           </View>
@@ -341,7 +353,8 @@ const styles = StyleSheet.create({
   categoryBadge: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 8 },
   categoryText: { color: '#2e86de', fontSize: 11, fontWeight: 'bold', textTransform: 'capitalize' },
   cardTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 6 },
-  cardDetail: { fontSize: 13, color: '#555', marginBottom: 3 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  cardDetail: { fontSize: 13, color: '#555', flex: 1 },
 
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 14 },
   statBox: { flex: 1, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 10, alignItems: 'center' },
@@ -371,7 +384,7 @@ const styles = StyleSheet.create({
   logBtnSub: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
 
   emptyContainer: { alignItems: 'center', marginTop: 60, paddingHorizontal: 30 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyIcon: { marginBottom: 12 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
   emptySubText: { fontSize: 14, color: '#999', textAlign: 'center' },
 

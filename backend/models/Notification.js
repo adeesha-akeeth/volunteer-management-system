@@ -8,7 +8,9 @@ const notificationSchema = new mongoose.Schema({
       'application_status', 'new_application',
       'donation_status', 'donation_received',
       'contribution_received', 'contribution_status',
-      'comment_reply', 'comment_like', 'follow_new_opportunity'
+      'comment_reply', 'comment_like', 'follow_new_opportunity',
+      'opportunity_comment', 'opportunity_vote',
+      'publisher_review', 'publisher_rating', 'publisher_vote'
     ],
     required: true
   },

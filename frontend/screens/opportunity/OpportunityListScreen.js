@@ -226,7 +226,7 @@ const OpportunityListScreen = ({ navigation }) => {
         {item.bannerImage ? (
           <Image source={{ uri: `${BASE_URL}/${item.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
         ) : (
-          <View style={styles.cardImagePlaceholder}><Text style={styles.cardImagePlaceholderText}>🌍</Text></View>
+          <View style={styles.cardImagePlaceholder}><Ionicons name="globe-outline" size={28} color="#aaa" /></View>
         )}
 
         <View style={styles.cardHeader}>
@@ -257,13 +257,24 @@ const OpportunityListScreen = ({ navigation }) => {
             <Text style={styles.publisherName}>{item.createdBy.name}</Text>
           </TouchableOpacity>
         )}
-        {item.organization ? <Text style={styles.cardDetail}>🏢 {item.organization}</Text> : null}
-        <Text style={styles.cardDetail}>📍 {item.location}</Text>
-        <Text style={styles.cardDetail}>
-          📅 {item.startDate
-            ? `${new Date(item.startDate).toDateString()} — ${new Date(item.endDate).toDateString()}`
-            : 'Date not set'}
-        </Text>
+        {item.organization ? (
+          <View style={styles.cardDetailRow}>
+            <Ionicons name="business-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+            <Text style={styles.cardDetail}>{item.organization}</Text>
+          </View>
+        ) : null}
+        <View style={styles.cardDetailRow}>
+          <Ionicons name="location-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+          <Text style={styles.cardDetail}>{item.location}</Text>
+        </View>
+        <View style={styles.cardDetailRow}>
+          <Ionicons name="calendar-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+          <Text style={styles.cardDetail}>
+            {item.startDate
+              ? `${new Date(item.startDate).toDateString()} — ${new Date(item.endDate).toDateString()}`
+              : 'Date not set'}
+          </Text>
+        </View>
 
         {hasFundraisers && item.fundraisers.map(fr => {
           const pct = fr.targetAmount > 0 ? Math.min(100, Math.round((fr.collectedAmount / fr.targetAmount) * 100)) : 0;
@@ -282,24 +293,29 @@ const OpportunityListScreen = ({ navigation }) => {
         })}
 
         <View style={styles.cardFooter}>
-          <Text style={styles.cardSpots}>👥 {item.spotsAvailable} spots</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="people-outline" size={14} color="#27ae60" style={{ marginRight: 4 }} />
+            <Text style={styles.cardSpots}>{item.spotsAvailable} spots</Text>
+          </View>
           <View style={styles.footerRight}>
             {/* Like/Dislike */}
             <TouchableOpacity
               style={[styles.voteBtn, likeActive && styles.voteBtnLikeActive]}
               onPress={(e) => { e.stopPropagation?.(); handleVote(item, 'like'); }}
             >
-              <Text style={styles.voteBtnText}>👍 {item.likes || 0}</Text>
+              <Ionicons name="thumbs-up-outline" size={13} color={likeActive ? '#2e86de' : '#555'} style={{ marginRight: 3 }} />
+              <Text style={styles.voteBtnText}>{item.likes || 0}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.voteBtn, dislikeActive && styles.voteBtnDislikeActive]}
               onPress={(e) => { e.stopPropagation?.(); handleVote(item, 'dislike'); }}
             >
-              <Text style={styles.voteBtnText}>👎 {item.dislikes || 0}</Text>
+              <Ionicons name="thumbs-down-outline" size={13} color={dislikeActive ? '#e74c3c' : '#555'} style={{ marginRight: 3 }} />
+              <Text style={styles.voteBtnText}>{item.dislikes || 0}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.heartButton} onPress={(e) => { e.stopPropagation?.(); handleAddToFavourites(item); }}>
-              <Text style={styles.heartIcon}>❤️</Text>
+              <Ionicons name="heart" size={15} color="#e74c3c" />
             </TouchableOpacity>
             <View style={[styles.applyBadge, isOwn && styles.applyBadgeOwn]}>
               <Text style={styles.applyBadgeText}>{isOwn ? 'View' : 'View & Apply'}</Text>
@@ -505,7 +521,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#2e86de' },
   cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
   cardImagePlaceholder: { width: '100%', height: 90, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
-  cardImagePlaceholderText: { color: '#2e86de', fontSize: 20 },
+  cardDetailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   cardHeaderLeft: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   categoryBadge: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
@@ -531,7 +547,6 @@ const styles = StyleSheet.create({
   voteBtnDislikeActive: { backgroundColor: '#ffe8e8', borderColor: '#e74c3c' },
   voteBtnText: { fontSize: 12, color: '#555', fontWeight: '600' },
   heartButton: { backgroundColor: '#ffe0e0', borderRadius: 18, padding: 6 },
-  heartIcon: { fontSize: 15 },
   applyBadge: { backgroundColor: '#2e86de', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 5 },
   applyBadgeOwn: { backgroundColor: '#888' },
   applyBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },

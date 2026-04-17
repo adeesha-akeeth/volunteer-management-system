@@ -77,8 +77,12 @@ const NotificationsScreen = ({ navigation }) => {
         break;
 
       case 'new_application':
+        if (relId) navigation.navigate('ManageApplications', { opportunityId: relId });
+        break;
+
       case 'donation_received':
-        if (relId) navigation.navigate('CreatorOpportunityDetail', { opportunityId: relId });
+        // Creator received a donation — go to My Fundraisers
+        navigation.getParent()?.navigate('Donations', { screen: 'MyFundraisers' });
         break;
 
       case 'contribution_received':
@@ -93,9 +97,12 @@ const NotificationsScreen = ({ navigation }) => {
         navigation.getParent()?.navigate('Donations', { screen: 'MyDonations' });
         break;
 
+      case 'follow_new_opportunity':
+        if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });
+        break;
+
       case 'comment_reply':
       case 'comment_like':
-      case 'follow_new_opportunity':
       case 'opportunity_comment':
       case 'opportunity_vote':
         if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });

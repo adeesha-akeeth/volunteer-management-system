@@ -4,6 +4,7 @@ import {
   ActivityIndicator, TouchableOpacity,
   TextInput, RefreshControl
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmModal';
@@ -144,9 +145,20 @@ const MyFeedbackScreen = () => {
         <Text style={styles.cardTitle}>{item.opportunity?.title}</Text>
         <Text style={styles.stars}>{renderStars(item.rating)}</Text>
       </View>
-      <Text style={styles.cardDetail}>🏢 {item.opportunity?.organization}</Text>
-      {item.comment ? <Text style={styles.cardDetail}>💬 {item.comment}</Text> : null}
-      <Text style={styles.cardDate}>📅 {new Date(item.createdAt).toDateString()}</Text>
+      <View style={styles.detailRow}>
+        <Ionicons name="business-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+        <Text style={styles.cardDetail}>{item.opportunity?.organization}</Text>
+      </View>
+      {item.comment ? (
+        <View style={styles.detailRow}>
+          <Ionicons name="chatbubble-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+          <Text style={styles.cardDetail}>{item.comment}</Text>
+        </View>
+      ) : null}
+      <View style={styles.detailRow}>
+        <Ionicons name="calendar-outline" size={13} color="#888" style={{ marginRight: 4 }} />
+        <Text style={styles.cardDate}>{new Date(item.createdAt).toDateString()}</Text>
+      </View>
       <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item._id)}>
         <Text style={styles.deleteButtonText}>Delete</Text>
       </TouchableOpacity>
@@ -264,8 +276,9 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
   stars: { fontSize: 16 },
-  cardDetail: { color: '#555', marginBottom: 4, fontSize: 14 },
-  cardDate: { color: '#999', fontSize: 12, marginTop: 5 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  cardDetail: { color: '#555', fontSize: 14, flex: 1 },
+  cardDate: { color: '#999', fontSize: 12 },
   deleteButton: { backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
   deleteButtonText: { color: '#fff', fontWeight: 'bold' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 50, fontSize: 16 }

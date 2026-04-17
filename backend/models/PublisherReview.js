@@ -5,7 +5,8 @@ const publisherReviewSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   text: { type: String, required: true },
   photo: { type: String, default: '' },
-  isUpdated: { type: Boolean, default: false }
+  isUpdated: { type: Boolean, default: false },
+  parentReview: { type: mongoose.Schema.Types.ObjectId, ref: 'PublisherReview', default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('PublisherReview', publisherReviewSchema);

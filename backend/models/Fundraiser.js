@@ -4,7 +4,11 @@ const fundraiserSchema = new mongoose.Schema({
   opportunity: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Opportunity',
-    required: true
+    required: false
+  },
+  description: {
+    type: String,
+    default: ''
   },
   name: {
     type: String,

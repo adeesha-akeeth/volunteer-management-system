@@ -27,7 +27,7 @@ router.delete('/reviews/:reviewId', protect, deletePublisherReview);
 router.get('/:id', optionalProtect, getPublisherProfile);
 router.post('/:id/rate', protect, ratePublisher);
 router.delete('/:id/rate', protect, deletePublisherRating);
-router.get('/:id/reviews', getPublisherReviews);
+router.get('/:id/reviews', optionalProtect, getPublisherReviews);
 router.post('/:id/reviews', protect, upload.single('photo'), addPublisherReview);
 
 module.exports = router;

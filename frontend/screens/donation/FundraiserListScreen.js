@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Image, TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../components/Toast';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const FundraiserListScreen = ({ navigation }) => {
   const toast = useToast();
+  const { user } = useContext(AuthContext);
   const [fundraisers, setFundraisers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,24 +37,35 @@ const FundraiserListScreen = ({ navigation }) => {
   const renderItem = ({ item }) => {
     const pct = item.targetAmount > 0 ? Math.min(100, Math.round((item.collectedAmount / item.targetAmount) * 100)) : 0;
     const isCompleted = item.status === 'completed';
+    const isCreator = item.createdBy?._id === user?.id || item.createdBy?.id === user?.id || item.createdBy === user?.id;
+    const isStandalone = !item.opportunity;
 
     return (
       <TouchableOpacity
         style={[styles.card, isCompleted && styles.cardCompleted]}
-        onPress={() => navigation.navigate('OpportunityDetailFromDonations', { opportunityId: item.opportunity?._id })}
+        onPress={() => {
+          if (isStandalone && isCreator) {
+            navigation.navigate('ManageMyFundraiser', { fundraiserId: item._id });
+          } else if (item.opportunity?._id) {
+            navigation.navigate('OpportunityDetailFromDonations', { opportunityId: item.opportunity._id });
+          }
+        }}
         activeOpacity={0.8}
       >
         {item.opportunity?.bannerImage ? (
           <Image source={{ uri: `${BASE_URL}/${item.opportunity.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
         ) : (
           <View style={styles.cardImagePlaceholder}>
-            <Text style={styles.cardImagePlaceholderText}>Fundraiser</Text>
+            <Ionicons name="cash-outline" size={30} color="#27ae60" />
           </View>
         )}
 
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
-            <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.opportunity?.category}</Text></View>
+            {item.opportunity?.category
+              ? <View style={styles.categoryBadge}><Text style={styles.categoryText}>{item.opportunity.category}</Text></View>
+              : <View style={styles.categoryBadge}><Text style={styles.categoryText}>Standalone</Text></View>
+            }
             {isCompleted
               ? <View style={styles.completedBadge}><Text style={styles.completedText}>Completed</Text></View>
               : <View style={styles.activeBadge}><Text style={styles.activeBadgeText}>Active</Text></View>
@@ -60,7 +73,12 @@ const FundraiserListScreen = ({ navigation }) => {
           </View>
 
           <Text style={styles.fundraiserName}>{item.name}</Text>
-          <Text style={styles.oppTitle}>{item.opportunity?.title}</Text>
+          {item.opportunity?.title
+            ? <Text style={styles.oppTitle}>{item.opportunity.title}</Text>
+            : item.description
+              ? <Text style={styles.oppTitle} numberOfLines={2}>{item.description}</Text>
+              : null
+          }
           {item.opportunity?.organization ? <Text style={styles.orgText}>{item.opportunity.organization}</Text> : null}
 
           <View style={styles.amountRow}>
@@ -72,7 +90,15 @@ const FundraiserListScreen = ({ navigation }) => {
           </View>
           <Text style={styles.pctText}>{pct}% funded · {item.donorCount} donor{item.donorCount !== 1 ? 's' : ''}</Text>
 
-          {!isCompleted && (
+          {isCreator ? (
+            <TouchableOpacity
+              style={styles.manageBtn}
+              onPress={() => navigation.navigate('ManageMyFundraiser', { fundraiserId: item._id })}
+            >
+              <Ionicons name="settings-outline" size={15} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.manageBtnText}>Manage</Text>
+            </TouchableOpacity>
+          ) : !isCompleted && (
             <TouchableOpacity
               style={styles.donateBtn}
               onPress={() => navigation.navigate('Donate', { fundraiserId: item._id, fundraiserName: item.name, opportunityTitle: item.opportunity?.title })}
@@ -134,7 +160,8 @@ const styles = StyleSheet.create({
   cardCompleted: { opacity: 0.8 },
   cardImage: { width: '100%', height: 140 },
   cardImagePlaceholder: { width: '100%', height: 90, backgroundColor: '#d5f5e3', justifyContent: 'center', alignItems: 'center' },
-  cardImagePlaceholderText: { color: '#27ae60', fontWeight: 'bold', fontSize: 16 },
+  manageBtn: { backgroundColor: '#2e86de', borderRadius: 8, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  manageBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   cardBody: { padding: 14 },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   categoryBadge: { backgroundColor: '#d5f5e3', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },

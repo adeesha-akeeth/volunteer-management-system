@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, AuthContext } from './context/AuthContext';
-import { ActivityIndicator, View, StatusBar } from 'react-native';
+import { ActivityIndicator, View, StatusBar, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ToastProvider } from './components/Toast';
 import { ConfirmProvider } from './components/ConfirmModal';
@@ -47,6 +47,9 @@ import NotificationsScreen from './screens/notifications/NotificationsScreen';
 import MyDonationsScreen from './screens/donation/MyDonationsScreen';
 import FundraiserListScreen from './screens/donation/FundraiserListScreen';
 import DonateScreen from './screens/donation/DonateScreen';
+import MyFundraisersScreen from './screens/donation/MyFundraisersScreen';
+import CreateFundraiserScreen from './screens/donation/CreateFundraiserScreen';
+import ManageMyFundraiserScreen from './screens/donation/ManageMyFundraiserScreen';
 
 // Favourites Screens
 import FavouritesScreen from './screens/favourites/FavouritesScreen';
@@ -103,10 +106,24 @@ const ImpactStack = () => (
 
 const DonationsStack = () => (
   <Stack.Navigator>
-    <Stack.Screen name="MyDonations" component={MyDonationsScreen} options={{ title: 'My Donations' }} />
+    <Stack.Screen
+      name="MyDonations"
+      component={MyDonationsScreen}
+      options={({ navigation }) => ({
+        title: 'My Donations',
+        headerRight: () => (
+          <TouchableOpacity onPress={() => navigation.navigate('MyFundraisers')} style={{ marginRight: 15 }}>
+            <Ionicons name="cash-outline" size={22} color="#27ae60" />
+          </TouchableOpacity>
+        )
+      })}
+    />
     <Stack.Screen name="FundraiserList" component={FundraiserListScreen} options={{ title: 'Support a Cause' }} />
     <Stack.Screen name="OpportunityDetailFromDonations" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
+    <Stack.Screen name="MyFundraisers" component={MyFundraisersScreen} options={{ title: 'My Fundraisers' }} />
+    <Stack.Screen name="CreateFundraiser" component={CreateFundraiserScreen} options={{ title: 'Create Fundraiser' }} />
+    <Stack.Screen name="ManageMyFundraiser" component={ManageMyFundraiserScreen} options={{ title: 'Manage Fundraiser' }} />
   </Stack.Navigator>
 );
 
@@ -121,6 +138,10 @@ const HomeStack = () => (
     <Stack.Screen name="ManageFundraisers" component={ManageFundraisersScreen} options={{ title: 'Manage Fundraisers' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
+    <Stack.Screen name="FundraiserList" component={FundraiserListScreen} options={{ title: 'Support a Cause' }} />
+    <Stack.Screen name="MyFundraisers" component={MyFundraisersScreen} options={{ title: 'My Fundraisers' }} />
+    <Stack.Screen name="CreateFundraiser" component={CreateFundraiserScreen} options={{ title: 'Create Fundraiser' }} />
+    <Stack.Screen name="ManageMyFundraiser" component={ManageMyFundraiserScreen} options={{ title: 'Manage Fundraiser' }} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
     <Stack.Screen name="PublisherComments" component={PublisherCommentsScreen} options={{ title: 'Comments & Reviews' }} />
@@ -158,6 +179,9 @@ const ProfileStack = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
     <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change Password' }} />
     <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
+    <Stack.Screen name="MyFundraisers" component={MyFundraisersScreen} options={{ title: 'My Fundraisers' }} />
+    <Stack.Screen name="CreateFundraiser" component={CreateFundraiserScreen} options={{ title: 'Create Fundraiser' }} />
+    <Stack.Screen name="ManageMyFundraiser" component={ManageMyFundraiserScreen} options={{ title: 'Manage Fundraiser' }} />
   </Stack.Navigator>
 );
 

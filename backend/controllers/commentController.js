@@ -65,8 +65,8 @@ const addComment = async (req, res) => {
     });
     const populated = await Comment.findById(comment._id).populate('author', 'name profileImage');
 
-    // Notify parent comment author on reply
     if (parentCommentId) {
+      // Notify parent comment author on reply
       try {
         const parentComment = await Comment.findById(parentCommentId).select('author opportunity');
         if (parentComment && parentComment.author.toString() !== req.user.id) {
@@ -76,6 +76,20 @@ const addComment = async (req, res) => {
             type: 'comment_reply',
             message: `Someone replied to your comment on "${opp?.title || 'an opportunity'}"`,
             relatedId: parentComment.opportunity,
+            relatedType: 'opportunity'
+          });
+        }
+      } catch {}
+    } else {
+      // Notify opportunity owner when someone posts a new top-level comment
+      try {
+        const opp = await Opportunity.findById(opportunityId).select('createdBy title');
+        if (opp && opp.createdBy.toString() !== req.user.id) {
+          await Notification.create({
+            recipient: opp.createdBy,
+            type: 'opportunity_comment',
+            message: `Someone commented on your opportunity "${opp.title}"`,
+            relatedId: opportunityId,
             relatedType: 'opportunity'
           });
         }
