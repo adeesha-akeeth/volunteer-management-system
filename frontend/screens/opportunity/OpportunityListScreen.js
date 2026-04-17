@@ -3,9 +3,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, TextInput, ActivityIndicator,
-  Alert, RefreshControl, Image, Modal, ScrollView
+  RefreshControl, Image, Modal, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -22,6 +23,7 @@ const CATEGORIES = [
 ];
 
 const OpportunityListScreen = ({ navigation }) => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('home');
   const [allOpportunities, setAllOpportunities] = useState([]); // full list from API
   const [opportunities, setOpportunities] = useState([]);       // filtered list
@@ -62,7 +64,7 @@ const OpportunityListScreen = ({ navigation }) => {
       setAllOpportunities(response.data);
       setOpportunities(applyLocalFilter(response.data, searchTerm, category));
     } catch {
-      Alert.alert('Error', 'Failed to load opportunities');
+      toast.error('Error', 'Failed to load opportunities');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -78,7 +80,14 @@ const OpportunityListScreen = ({ navigation }) => {
     fetchOpportunities(activeTab, search, selectedCategory);
   }, [activeTab]);
 
-  // Auto-refresh when screen comes back into focus (e.g. after creating opportunity)
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await api.get('/api/notifications');
+      setUnreadCount(res.data.unreadCount || 0);
+    } catch {}
+  };
+
+  // Auto-refresh opportunities and unread count whenever screen gains focus
   useFocusEffect(
     useCallback(() => {
       if (isMounted.current) {
@@ -86,18 +95,9 @@ const OpportunityListScreen = ({ navigation }) => {
       } else {
         isMounted.current = true;
       }
+      fetchUnreadCount();
     }, [activeTab])
   );
-
-  useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const res = await api.get('/api/notifications');
-        setUnreadCount(res.data.unreadCount || 0);
-      } catch {}
-    };
-    fetchUnread();
-  }, []);
 
   const handleSearch = (text) => {
     setSearch(text);
@@ -183,7 +183,7 @@ const OpportunityListScreen = ({ navigation }) => {
       const res = await api.get('/api/favourites');
       setFavLists(res.data);
     } catch {
-      Alert.alert('Error', 'Failed to load your lists');
+      toast.error('Error', 'Failed to load your lists');
       setFavModalVisible(false);
     } finally {
       setFavLoading(false);
@@ -194,9 +194,9 @@ const OpportunityListScreen = ({ navigation }) => {
     setFavModalVisible(false);
     try {
       await api.post(`/api/favourites/${listId}/add`, { opportunityId: pendingFavOpp._id });
-      Alert.alert('Added!', `"${pendingFavOpp.title}" saved to your list.`);
+      toast.success('Added!', `"${pendingFavOpp.title}" saved to your list.`);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to add');
+      toast.error('Error', error.response?.data?.message || 'Failed to add');
     }
   };
 
@@ -205,9 +205,9 @@ const OpportunityListScreen = ({ navigation }) => {
     try {
       const res = await api.post('/api/favourites', { name: 'Favourites', description: 'My saved opportunities' });
       await api.post(`/api/favourites/${res.data._id}/add`, { opportunityId: pendingFavOpp._id });
-      Alert.alert('Saved!', `Created "Favourites" list and added "${pendingFavOpp.title}".`);
+      toast.success('Saved!', `Created "Favourites" list and added "${pendingFavOpp.title}".`);
     } catch {
-      Alert.alert('Error', 'Failed to save');
+      toast.error('Error', 'Failed to save');
     }
   };
 

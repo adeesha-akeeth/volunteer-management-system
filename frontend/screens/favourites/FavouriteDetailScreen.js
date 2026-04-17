@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity,
+  ActivityIndicator, TouchableOpacity,
   RefreshControl, Image, ScrollView
 } from 'react-native';
+import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const FavouriteDetailScreen = ({ route, navigation }) => {
+  const toast = useToast();
+  const confirm = useConfirm();
   const { list } = route.params;
   const [opportunities, setOpportunities] = useState(list.opportunities || []);
   const [extraData, setExtraData] = useState({}); // keyed by opp._id: { likes, dislikes, averageRating }
@@ -58,21 +62,21 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
     fetchList().then(() => fetchExtras(opportunities));
   };
 
-  const handleRemove = async (opportunityId) => {
-    Alert.alert('Remove', 'Remove this opportunity from the list?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/favourites/${list._id}/remove/${opportunityId}`);
-            setOpportunities(prev => prev.filter(op => op._id !== opportunityId));
-          } catch {
-            Alert.alert('Error', 'Failed to remove');
-          }
+  const handleRemove = (opportunityId) => {
+    confirm.show({
+      title: 'Remove',
+      message: 'Remove this opportunity from the list?',
+      confirmText: 'Remove',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/favourites/${list._id}/remove/${opportunityId}`);
+          setOpportunities(prev => prev.filter(op => op._id !== opportunityId));
+        } catch {
+          toast.error('Error', 'Failed to remove');
         }
       }
-    ]);
+    });
   };
 
   // Collect all categories in this list

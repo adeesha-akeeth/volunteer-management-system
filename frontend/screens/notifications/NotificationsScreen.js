@@ -1,24 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  TouchableOpacity, ActivityIndicator, Alert, RefreshControl
+  TouchableOpacity, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
-const typeIcon = {
-  application_status: '📋',
-  new_application: '🔔',
-  donation_status: '💰',
-  donation_received: '💵',
-  contribution_received: '⏱',
-  contribution_status: '✅',
-  comment_reply: '💬',
-  comment_like: '👍',
-  follow_new_opportunity: '🌟'
+const TYPE_ICON = {
+  application_status:     { name: 'document-text-outline',   color: '#2e86de' },
+  new_application:        { name: 'person-add-outline',       color: '#27ae60' },
+  donation_status:        { name: 'cash-outline',             color: '#f39c12' },
+  donation_received:      { name: 'wallet-outline',           color: '#27ae60' },
+  contribution_received:  { name: 'time-outline',             color: '#9b59b6' },
+  contribution_status:    { name: 'checkmark-circle-outline', color: '#27ae60' },
+  comment_reply:          { name: 'chatbubble-outline',       color: '#2e86de' },
+  comment_like:           { name: 'thumbs-up-outline',        color: '#e67e22' },
+  follow_new_opportunity: { name: 'star-outline',             color: '#f39c12' },
+  opportunity_comment:    { name: 'chatbubbles-outline',      color: '#9b59b6' },
+  opportunity_vote:       { name: 'heart-outline',            color: '#e74c3c' },
+  publisher_review:       { name: 'chatbubble-ellipses-outline', color: '#2e86de' },
+  publisher_rating:       { name: 'star-outline',             color: '#f39c12' },
+  publisher_vote:         { name: 'thumbs-up-outline',        color: '#27ae60' }
 };
 
 const NotificationsScreen = ({ navigation }) => {
+  const toast = useToast();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,7 +35,7 @@ const NotificationsScreen = ({ navigation }) => {
       const res = await api.get('/api/notifications');
       setNotifications(res.data.notifications || []);
     } catch {
-      Alert.alert('Error', 'Failed to load notifications');
+      toast.error('Error', 'Failed to load notifications');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,7 +60,6 @@ const NotificationsScreen = ({ navigation }) => {
   };
 
   const handlePress = (notification) => {
-    // Mark as read immediately for live count update
     if (!notification.read) {
       markRead(notification._id);
     }
@@ -62,7 +68,12 @@ const NotificationsScreen = ({ navigation }) => {
 
     switch (notification.type) {
       case 'application_status':
-        navigation.getParent()?.navigate('Profile', { screen: 'MyApplications' });
+        // Route to specific opportunity detail so user can see their accepted status inline
+        if (relId) {
+          navigation.navigate('OpportunityDetail', { opportunityId: relId });
+        } else {
+          navigation.getParent()?.navigate('Profile', { screen: 'MyApplications' });
+        }
         break;
 
       case 'new_application':
@@ -71,12 +82,10 @@ const NotificationsScreen = ({ navigation }) => {
         break;
 
       case 'contribution_received':
-        // Go to AllContributions so publisher can verify easily
         navigation.getParent()?.navigate('Profile', { screen: 'AllContributions' });
         break;
 
       case 'contribution_status':
-        // Volunteer sees their ongoing opportunities to check status
         if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });
         break;
 
@@ -87,7 +96,15 @@ const NotificationsScreen = ({ navigation }) => {
       case 'comment_reply':
       case 'comment_like':
       case 'follow_new_opportunity':
+      case 'opportunity_comment':
+      case 'opportunity_vote':
         if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });
+        break;
+
+      case 'publisher_review':
+      case 'publisher_rating':
+      case 'publisher_vote':
+        if (relId) navigation.navigate('PublisherProfile', { publisherId: relId.toString() });
         break;
 
       default:
@@ -116,20 +133,25 @@ const NotificationsScreen = ({ navigation }) => {
             <Text style={styles.emptyText}>No notifications yet</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.item, !item.read && styles.itemUnread]}
-            onPress={() => handlePress(item)}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.icon}>{typeIcon[item.type] || '🔔'}</Text>
-            <View style={styles.itemBody}>
-              <Text style={styles.message}>{item.message}</Text>
-              <Text style={styles.time}>{new Date(item.createdAt).toDateString()}</Text>
-            </View>
-            {!item.read && <View style={styles.unreadDot} />}
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const iconInfo = TYPE_ICON[item.type] || { name: 'notifications-outline', color: '#888' };
+          return (
+            <TouchableOpacity
+              style={[styles.item, !item.read && styles.itemUnread]}
+              onPress={() => handlePress(item)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: iconInfo.color + '18' }]}>
+                <Ionicons name={iconInfo.name} size={20} color={iconInfo.color} />
+              </View>
+              <View style={styles.itemBody}>
+                <Text style={styles.message}>{item.message}</Text>
+                <Text style={styles.time}>{new Date(item.createdAt).toDateString()}</Text>
+              </View>
+              {!item.read && <View style={styles.unreadDot} />}
+            </TouchableOpacity>
+          );
+        }}
       />
     </View>
   );
@@ -142,7 +164,7 @@ const styles = StyleSheet.create({
   markAllText: { color: '#2e86de', fontWeight: 'bold', fontSize: 14 },
   item: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 14, marginHorizontal: 15, marginTop: 8, borderRadius: 10, elevation: 1 },
   itemUnread: { backgroundColor: '#f0f8ff', borderLeftWidth: 4, borderLeftColor: '#2e86de' },
-  icon: { fontSize: 24, marginRight: 12 },
+  iconCircle: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   itemBody: { flex: 1 },
   message: { fontSize: 14, color: '#333', lineHeight: 20 },
   time: { fontSize: 11, color: '#aaa', marginTop: 4 },

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  ActivityIndicator, Alert, RefreshControl, Image
+  ActivityIndicator, RefreshControl, Image
 } from 'react-native';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const PastVolunteeringScreen = () => {
+  const toast = useToast();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -17,7 +19,7 @@ const PastVolunteeringScreen = () => {
       const res = await api.get('/api/contributions/my-past');
       setData(res.data);
     } catch {
-      Alert.alert('Error', 'Failed to load past volunteering');
+      toast.error('Error', 'Failed to load past volunteering');
     } finally {
       setLoading(false);
       setRefreshing(false);

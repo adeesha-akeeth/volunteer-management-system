@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, RefreshControl, Image, TextInput
+  StyleSheet, ActivityIndicator, RefreshControl, Image, TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const FundraiserListScreen = ({ navigation }) => {
+  const toast = useToast();
   const [fundraisers, setFundraisers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -19,7 +21,7 @@ const FundraiserListScreen = ({ navigation }) => {
       const res = await api.get(`/api/fundraisers?search=${encodeURIComponent(q)}`);
       setFundraisers(res.data);
     } catch {
-      Alert.alert('Error', 'Failed to load fundraisers');
+      toast.error('Error', 'Failed to load fundraisers');
     } finally {
       setLoading(false);
       setRefreshing(false);

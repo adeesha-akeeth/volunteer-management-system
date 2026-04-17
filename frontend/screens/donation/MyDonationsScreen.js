@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity,
+  ActivityIndicator, TouchableOpacity,
   TextInput, RefreshControl, Modal, ScrollView, Image
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const MyDonationsScreen = ({ navigation }) => {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,7 +34,7 @@ const MyDonationsScreen = ({ navigation }) => {
       setDonations(response.data.donations);
       setConfirmedTotal(response.data.confirmedTotal || 0);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load donations');
+      toast.error('Error', 'Failed to load donations');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,7 +62,7 @@ const MyDonationsScreen = ({ navigation }) => {
   const pickEditReceipt = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
+      toast.warning('Permission required', 'Please allow access to your photo library');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -71,7 +75,7 @@ const MyDonationsScreen = ({ navigation }) => {
 
   const handleSaveEdit = async () => {
     if (!editAmount || isNaN(editAmount) || Number(editAmount) < 1) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      toast.error('Error', 'Please enter a valid amount');
       return;
     }
     setEditSubmitting(true);
@@ -90,32 +94,32 @@ const MyDonationsScreen = ({ navigation }) => {
       await api.put(`/api/donations/${editingDonation._id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      Alert.alert('Success', 'Donation updated successfully');
+      toast.success('Success', 'Donation updated successfully');
       closeEdit();
       fetchDonations();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update donation');
+      toast.error('Error', error.response?.data?.message || 'Failed to update donation');
     } finally {
       setEditSubmitting(false);
     }
   };
 
-  const handleDelete = async (donationId) => {
-    Alert.alert('Delete Donation', 'Are you sure you want to delete this donation?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/donations/${donationId}`);
-            Alert.alert('Success', 'Donation deleted');
-            fetchDonations();
-          } catch (error) {
-            Alert.alert('Error', error.response?.data?.message || 'Failed to delete donation');
-          }
+  const handleDelete = (donationId) => {
+    confirm.show({
+      title: 'Delete Donation',
+      message: 'Are you sure you want to delete this donation?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/donations/${donationId}`);
+          toast.success('Deleted', 'Donation deleted successfully');
+          fetchDonations();
+        } catch (error) {
+          toast.error('Error', error.response?.data?.message || 'Failed to delete donation');
         }
       }
-    ]);
+    });
   };
 
   const getStatusColor = (status) => {

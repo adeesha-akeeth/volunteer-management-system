@@ -1,15 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  TouchableOpacity, ActivityIndicator, Alert, RefreshControl
+  TouchableOpacity, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const STATUS_COLOR = { pending: '#f39c12', verified: '#27ae60', rejected: '#e74c3c' };
 const STATUS_ICON = { pending: '⏳', verified: '✅', rejected: '❌' };
 
 const AllContributionsScreen = () => {
+  const toast = useToast();
   const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -21,7 +23,7 @@ const AllContributionsScreen = () => {
       const res = await api.get('/api/contributions/creator/all');
       setContributions(res.data || []);
     } catch {
-      Alert.alert('Error', 'Failed to load contributions');
+      toast.error('Error', 'Failed to load contributions');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -37,7 +39,7 @@ const AllContributionsScreen = () => {
       await api.put(`/api/contributions/${id}/status`, { status });
       setContributions(prev => prev.map(c => c._id === id ? { ...c, status } : c));
     } catch {
-      Alert.alert('Error', `Failed to ${status === 'verified' ? 'approve' : 'reject'} contribution`);
+      toast.error('Error', `Failed to ${status === 'verified' ? 'approve' : 'reject'} contribution`);
     } finally {
       setActionLoading(prev => ({ ...prev, [id]: false }));
     }

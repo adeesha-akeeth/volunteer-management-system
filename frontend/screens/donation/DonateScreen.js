@@ -1,14 +1,16 @@
 import React, { useState, useContext } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image,
+  StyleSheet, ScrollView, ActivityIndicator, Image,
   KeyboardAvoidingView, Platform, SafeAreaView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 import { AuthContext } from '../../context/AuthContext';
 
 const DonateScreen = ({ route, navigation }) => {
+  const toast = useToast();
   const { fundraiserId, fundraiserName, opportunityTitle } = route.params;
   const { user } = useContext(AuthContext);
   const [amount, setAmount] = useState('');
@@ -20,14 +22,14 @@ const DonateScreen = ({ route, navigation }) => {
 
   const pickReceipt = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission required', 'Please allow photo access'); return; }
+    if (!perm.granted) { toast.warning('Permission required', 'Please allow photo access'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 });
     if (!result.canceled) setReceiptImage(result.assets[0]);
   };
 
   const handleSubmit = async () => {
     if (!amount || isNaN(amount) || Number(amount) < 1) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount (minimum LKR 1)'); return;
+      toast.error('Invalid Amount', 'Please enter a valid amount (minimum LKR 1)'); return;
     }
     setSubmitting(true);
     try {
@@ -43,13 +45,10 @@ const DonateScreen = ({ route, navigation }) => {
         formData.append('receiptImage', { uri: receiptImage.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
       }
       await api.post('/api/donations', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      Alert.alert(
-        'Donation Submitted!',
-        'Your donation is pending review. You can view and edit it in the Donations tab until it\'s accepted.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      toast.success('Donation Submitted!', 'Your donation is pending review. Check the Donations tab to manage it.');
+      setTimeout(() => navigation.goBack(), 2000);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit');
+      toast.error('Error', error.response?.data?.message || error.message || 'Failed to submit');
     } finally {
       setSubmitting(false);
     }

@@ -5,12 +5,14 @@ import {
   RefreshControl, Image, Modal, TextInput
 } from 'react-native';
 import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const OngoingOpportunitiesScreen = ({ navigation }) => {
   const toast = useToast();
+  const confirm = useConfirm();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,27 +100,21 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
   };
 
   const handleDeleteContribution = (contribution) => {
-    // Using Alert for destructive action confirmation
-    const { Alert } = require('react-native');
-    Alert.alert(
-      'Delete Contribution',
-      `Delete this ${contribution.hours}hr pending submission?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/api/contributions/my/${contribution._id}`);
-              toast.success('Deleted', 'Contribution removed.');
-              fetchData();
-            } catch (error) {
-              toast.error('Error', error.response?.data?.message || 'Failed to delete');
-            }
-          }
+    confirm.show({
+      title: 'Delete Contribution',
+      message: `Delete this ${contribution.hours}hr pending submission?`,
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/contributions/my/${contribution._id}`);
+          toast.success('Deleted', 'Contribution removed.');
+          fetchData();
+        } catch (error) {
+          toast.error('Error', error.response?.data?.message || 'Failed to delete');
         }
-      ]
-    );
+      }
+    });
   };
 
   const statusColor = (s) => ({ verified: '#27ae60', rejected: '#e74c3c' }[s] || '#f39c12');
@@ -132,15 +128,22 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
 
     return (
       <View style={styles.card}>
-        {opp.bannerImage ? (
-          <Image source={{ uri: `${BASE_URL}/${opp.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.cardImagePlaceholder}><Text style={styles.placeholderText}>🌍</Text></View>
-        )}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('Home', { screen: 'OpportunityDetail', params: { opportunityId: opp._id } })}
+        >
+          {opp.bannerImage ? (
+            <Image source={{ uri: `${BASE_URL}/${opp.bannerImage}` }} style={styles.cardImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.cardImagePlaceholder}><Text style={styles.placeholderText}>🌍</Text></View>
+          )}
+        </TouchableOpacity>
 
         <View style={styles.cardBody}>
           <View style={styles.categoryBadge}><Text style={styles.categoryText}>{opp.category}</Text></View>
+          <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'OpportunityDetail', params: { opportunityId: opp._id } })} activeOpacity={0.7}>
           <Text style={styles.cardTitle}>{opp.title}</Text>
+          </TouchableOpacity>
           {opp.organization ? <Text style={styles.cardDetail}>🏢 {opp.organization}</Text> : null}
           <Text style={styles.cardDetail}>📍 {opp.location}</Text>
 

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image, Switch
+  StyleSheet, ScrollView, ActivityIndicator, Image, Switch
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const SubmitFeedbackScreen = ({ route, navigation }) => {
+  const toast = useToast();
   const { opportunity } = route.params;
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -17,7 +19,7 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
+      toast.warning('Permission required', 'Please allow access to your photo library');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -30,7 +32,7 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
 
   const handleSubmit = async () => {
     if (!rating) {
-      Alert.alert('Error', 'Please select a rating');
+      toast.error('Error', 'Please select a rating');
       return;
     }
     setLoading(true);
@@ -47,11 +49,10 @@ const SubmitFeedbackScreen = ({ route, navigation }) => {
         formData.append('photo', { uri: photo.uri, name: filename, type });
       }
       await api.post('/api/feedback', formData);
-      Alert.alert('Success', 'Feedback submitted!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      toast.success('Success', 'Feedback submitted!');
+      setTimeout(() => navigation.goBack(), 1500);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit');
+      toast.error('Error', error.response?.data?.message || error.message || 'Failed to submit');
     } finally {
       setLoading(false);
     }

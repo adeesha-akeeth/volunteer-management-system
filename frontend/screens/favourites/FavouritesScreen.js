@@ -1,12 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity,
+  ActivityIndicator, TouchableOpacity,
   RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform,
   Image, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
@@ -34,6 +36,8 @@ const ListFormModal = ({ visible, title, name, description, onChangeName, onChan
 );
 
 const FavouritesScreen = ({ navigation }) => {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('feed');
 
   // Feed state
@@ -79,7 +83,7 @@ const FavouritesScreen = ({ navigation }) => {
       const res = await api.get('/api/favourites');
       setLists(res.data);
     } catch {
-      Alert.alert('Error', 'Failed to load favourites');
+      toast.error('Error', 'Failed to load favourites');
     } finally {
       setListsLoading(false);
       setListsRefreshing(false);
@@ -101,37 +105,40 @@ const FavouritesScreen = ({ navigation }) => {
   };
 
   const handleCreate = async () => {
-    if (!createName.trim()) { Alert.alert('Required', 'Please enter a list name'); return; }
+    if (!createName.trim()) { toast.warning('Required', 'Please enter a list name'); return; }
     setCreating(true);
     try {
       await api.post('/api/favourites', { name: createName.trim(), description: createDesc.trim() });
       setShowCreate(false); setCreateName(''); setCreateDesc('');
       fetchLists();
-    } catch { Alert.alert('Error', 'Failed to create list'); }
+    } catch { toast.error('Error', 'Failed to create list'); }
     finally { setCreating(false); }
   };
 
   const openEdit = (list) => { setEditingList(list); setEditName(list.name); setEditDesc(list.description || ''); setShowEdit(true); };
 
   const handleEdit = async () => {
-    if (!editName.trim()) { Alert.alert('Required', 'Please enter a list name'); return; }
+    if (!editName.trim()) { toast.warning('Required', 'Please enter a list name'); return; }
     setEditing(true);
     try {
       await api.put(`/api/favourites/${editingList._id}`, { name: editName.trim(), description: editDesc.trim() });
       setShowEdit(false); setEditingList(null);
       fetchLists();
-    } catch { Alert.alert('Error', 'Failed to update list'); }
+    } catch { toast.error('Error', 'Failed to update list'); }
     finally { setEditing(false); }
   };
 
   const handleDelete = (list) => {
-    Alert.alert('Delete List', `Delete "${list.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+    confirm.show({
+      title: 'Delete List',
+      message: `Delete "${list.name}"?`,
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
         try { await api.delete(`/api/favourites/${list._id}`); fetchLists(); }
-        catch { Alert.alert('Error', 'Failed to delete list'); }
-      }}
-    ]);
+        catch { toast.error('Error', 'Failed to delete list'); }
+      }
+    });
   };
 
   const renderFeedItem = ({ item }) => {

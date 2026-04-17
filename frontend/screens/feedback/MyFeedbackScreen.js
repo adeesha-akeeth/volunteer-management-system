@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity,
+  ActivityIndicator, TouchableOpacity,
   TextInput, RefreshControl
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const MyFeedbackScreen = () => {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,7 +28,7 @@ const MyFeedbackScreen = () => {
       const response = await api.get('/api/feedback/my');
       setFeedbacks(response.data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load feedback');
+      toast.error('Error', 'Failed to load feedback');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,7 +57,7 @@ const MyFeedbackScreen = () => {
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
+      toast.warning('Permission required', 'Please allow access to your photo library');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -68,11 +72,11 @@ const MyFeedbackScreen = () => {
 
   const handleSubmitFeedback = async () => {
     if (!selectedOpportunity || !rating) {
-      Alert.alert('Error', 'Please select an opportunity and rating');
+      toast.error('Error', 'Please select an opportunity and rating');
       return;
     }
     if (isNaN(rating) || Number(rating) < 1 || Number(rating) > 5) {
-      Alert.alert('Error', 'Rating must be between 1 and 5');
+      toast.error('Error', 'Rating must be between 1 and 5');
       return;
     }
     setSubmitting(true);
@@ -94,7 +98,7 @@ const MyFeedbackScreen = () => {
           comment
         });
       }
-      Alert.alert('Success', 'Feedback submitted successfully!');
+      toast.success('Success', 'Feedback submitted successfully!');
       setShowForm(false);
       setSelectedOpportunity(null);
       setRating('');
@@ -102,28 +106,28 @@ const MyFeedbackScreen = () => {
       setPhoto(null);
       fetchFeedback();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to submit feedback');
+      toast.error('Error', error.response?.data?.message || error.message || 'Failed to submit feedback');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (feedbackId) => {
-    Alert.alert('Delete Feedback', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/feedback/${feedbackId}`);
-            Alert.alert('Success', 'Feedback deleted');
-            fetchFeedback();
-          } catch (error) {
-            Alert.alert('Error', 'Failed to delete feedback');
-          }
+  const handleDelete = (feedbackId) => {
+    confirm.show({
+      title: 'Delete Feedback',
+      message: 'Are you sure you want to delete this feedback?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/feedback/${feedbackId}`);
+          toast.success('Deleted', 'Feedback deleted');
+          fetchFeedback();
+        } catch (error) {
+          toast.error('Error', 'Failed to delete feedback');
         }
       }
-    ]);
+    });
   };
 
   const renderStars = (rating) => {

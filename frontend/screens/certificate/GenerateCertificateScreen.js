@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, Image
+  StyleSheet, ScrollView, ActivityIndicator, Image
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const GenerateCertificateScreen = ({ route, navigation }) => {
+  const toast = useToast();
   const { application, opportunity } = route.params;
   const [description, setDescription] = useState('');
   const [logo, setLogo] = useState(null);
@@ -15,7 +17,7 @@ const GenerateCertificateScreen = ({ route, navigation }) => {
   const pickLogo = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
+      toast.warning('Permission required', 'Please allow access to your photo library');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -50,11 +52,10 @@ const GenerateCertificateScreen = ({ route, navigation }) => {
           description
         });
       }
-      Alert.alert('Success', 'Certificate generated successfully!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      toast.success('Success', 'Certificate generated successfully!');
+      setTimeout(() => navigation.goBack(), 1500);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to generate certificate');
+      toast.error('Error', error.response?.data?.message || error.message || 'Failed to generate certificate');
     } finally {
       setLoading(false);
     }

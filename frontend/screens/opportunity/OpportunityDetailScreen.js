@@ -1,22 +1,24 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, Image, TextInput, Modal, FlatList,
+  TouchableOpacity, ActivityIndicator, Image, TextInput, Modal, FlatList,
   KeyboardAvoidingView, Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 import { AuthContext } from '../../context/AuthContext';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
-// ── CommentItem defined OUTSIDE the parent component to avoid re-mount bug ──
 const CommentItem = ({ item, parentId, userId, handlers }) => {
   const {
     handleDeleteComment, handleCommentVote,
     setReplyingTo, replyingTo,
     setExpandedReplies, expandedReplies,
-    handleAddReply, replyText, setReplyText, replySubmitting,
+    handleAddReply, replyText, setReplyText, replyPhoto, pickReplyPhoto, replySubmitting,
     openEditComment, scrollToEnd
   } = handlers;
 
@@ -43,32 +45,30 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
               <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleDeleteComment(item._id, parentId)} style={styles.commentDeleteBtn}>
-              <Text style={styles.commentDeleteText}>✕</Text>
+              <Ionicons name="close" size={14} color="#e74c3c" />
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {item.rating && (
-        <Text style={styles.commentRating}>{'⭐'.repeat(item.rating)}</Text>
-      )}
+      {item.rating && <Text style={styles.commentRating}>{'⭐'.repeat(item.rating)}</Text>}
       <Text style={styles.commentText}>{item.text}</Text>
-      {item.photo ? (
-        <Image source={{ uri: `${BASE_URL}/${item.photo}` }} style={styles.commentPhoto} resizeMode="cover" />
-      ) : null}
+      {item.photo ? <Image source={{ uri: `${BASE_URL}/${item.photo}` }} style={styles.commentPhoto} resizeMode="cover" /> : null}
 
       <View style={styles.commentFooter}>
         <TouchableOpacity
           style={[styles.commentVoteBtn, item.userVote === 'like' && styles.commentVoteBtnLikeActive]}
           onPress={() => handleCommentVote(item, 'like')}
         >
-          <Text style={styles.commentVoteBtnText}>👍 {item.likes || 0}</Text>
+          <Ionicons name="thumbs-up-outline" size={12} color={item.userVote === 'like' ? '#2e86de' : '#777'} />
+          <Text style={styles.commentVoteBtnText}> {item.likes || 0}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.commentVoteBtn, item.userVote === 'dislike' && styles.commentVoteBtnDislikeActive]}
           onPress={() => handleCommentVote(item, 'dislike')}
         >
-          <Text style={styles.commentVoteBtnText}>👎 {item.dislikes || 0}</Text>
+          <Ionicons name="thumbs-down-outline" size={12} color={item.userVote === 'dislike' ? '#e74c3c' : '#777'} />
+          <Text style={styles.commentVoteBtnText}> {item.dislikes || 0}</Text>
         </TouchableOpacity>
         {!parentId && (
           <TouchableOpacity
@@ -79,7 +79,8 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
               if (opening) setTimeout(() => scrollToEnd?.(), 150);
             }}
           >
-            <Text style={styles.replyBtnText}>↩ Reply</Text>
+            <Ionicons name="return-down-back-outline" size={13} color="#555" />
+            <Text style={styles.replyBtnText}> Reply</Text>
           </TouchableOpacity>
         )}
         {hasReplies && !parentId && (
@@ -90,18 +91,25 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
       </View>
 
       {!parentId && replyingTo?.id === item._id && (
-        <View style={styles.replyInputRow}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder={`Reply to ${replyingTo.authorName}...`}
-            placeholderTextColor="#aaa"
-            value={replyText}
-            onChangeText={setReplyText}
-            multiline
-          />
-          <TouchableOpacity style={styles.replySubmitBtn} onPress={handleAddReply} disabled={replySubmitting}>
-            {replySubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.replySubmitText}>Send</Text>}
+        <View style={styles.replyFormContainer}>
+          <View style={styles.replyInputRow}>
+            <TextInput
+              style={styles.replyInput}
+              placeholder={`Reply to ${replyingTo.authorName}...`}
+              placeholderTextColor="#aaa"
+              value={replyText}
+              onChangeText={setReplyText}
+              multiline
+            />
+            <TouchableOpacity style={styles.replySubmitBtn} onPress={handleAddReply} disabled={replySubmitting}>
+              {replySubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.replySubmitText}>Send</Text>}
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.replyPhotoBtn} onPress={pickReplyPhoto}>
+            <Ionicons name={replyPhoto ? 'checkmark-circle' : 'camera-outline'} size={14} color="#9b59b6" />
+            <Text style={styles.replyPhotoBtnText}>{replyPhoto ? 'Photo selected — tap to change' : 'Add photo (optional)'}</Text>
           </TouchableOpacity>
+          {replyPhoto && <Image source={{ uri: replyPhoto.uri }} style={styles.replyPhotoPreview} resizeMode="cover" />}
         </View>
       )}
 
@@ -114,43 +122,63 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const DetailRow = ({ icon, label, value, valueStyle, onPress }) => (
+  <TouchableOpacity style={styles.detailRow} onPress={onPress} disabled={!onPress} activeOpacity={onPress ? 0.7 : 1}>
+    <View style={styles.detailIconWrap}>
+      <Ionicons name={icon} size={17} color="#666" />
+    </View>
+    <View style={styles.detailTextWrap}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={[styles.detailValue, valueStyle]}>{value}</Text>
+    </View>
+    {onPress && <Ionicons name="chevron-forward" size={14} color="#aaa" />}
+  </TouchableOpacity>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const OpportunityDetailScreen = ({ route, navigation }) => {
   const { opportunityId } = route.params;
   const { user } = useContext(AuthContext);
+  const toast = useToast();
+  const confirm = useConfirm();
   const [opportunity, setOpportunity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isCreator, setIsCreator] = useState(false);
   const [isPast, setIsPast] = useState(false);
+  const [myApplicationStatus, setMyApplicationStatus] = useState(null);
 
-  // Donors modal
+  const [myContributions, setMyContributions] = useState([]);
+
+  // Log contribution modal
+  const [contribModal, setContribModal] = useState(false);
+  const [contribHours, setContribHours] = useState('');
+  const [contribDesc, setContribDesc] = useState('');
+  const [contribSubmitting, setContribSubmitting] = useState(false);
+
   const [donorsModal, setDonorsModal] = useState(null);
   const [donors, setDonors] = useState([]);
   const [donorsLoading, setDonorsLoading] = useState(false);
 
-  // Comments
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
-  const [commentRating, setCommentRating] = useState(0);
   const [commentPhoto, setCommentPhoto] = useState(null);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [showCommentForm, setShowCommentForm] = useState(false);
 
-  // Comment editing
   const [editingComment, setEditingComment] = useState(null);
   const [editText, setEditText] = useState('');
-  const [editRating, setEditRating] = useState(0);
   const [editPhoto, setEditPhoto] = useState(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Reply state
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [replyPhoto, setReplyPhoto] = useState(null);
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState({});
 
   const scrollViewRef = useRef(null);
 
-  // Opportunity rating (separate from comments)
   const [userRating, setUserRating] = useState(null);
   const [averageRating, setAverageRating] = useState(null);
   const [ratingCount, setRatingCount] = useState(0);
@@ -158,32 +186,52 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
 
   const fetchData = async () => {
     try {
-      const [oppRes, commentsRes, ratingRes] = await Promise.all([
+      const fetches = [
         api.get(`/api/opportunities/${opportunityId}`),
         api.get(`/api/comments/opportunity/${opportunityId}`),
         api.get(`/api/opportunity-ratings/${opportunityId}`)
-      ]);
-      const opp = oppRes.data;
+      ];
+      if (user) fetches.push(api.get('/api/applications/my'));
+
+      const results = await Promise.all(fetches);
+      const opp = results[0].data;
       setOpportunity(opp);
-      setComments(commentsRes.data || []);
+      setComments(results[1].data || []);
       setIsCreator(opp.createdBy?._id === user?.id);
       if (opp.endDate && new Date() > new Date(opp.endDate)) setIsPast(true);
-      setUserRating(ratingRes.data.userRating);
-      setAverageRating(ratingRes.data.averageRating);
-      setRatingCount(ratingRes.data.ratingCount);
+      setUserRating(results[2].data.userRating);
+      setAverageRating(results[2].data.averageRating);
+      setRatingCount(results[2].data.ratingCount);
+
+      if (user && results[3]) {
+        const myApp = (results[3].data || []).find(a =>
+          a.opportunity?._id === opportunityId || a.opportunity === opportunityId
+        );
+        const status = myApp?.status || null;
+        setMyApplicationStatus(status);
+
+        if (status === 'approved') {
+          try {
+            const contribRes = await api.get('/api/contributions/my-opportunities');
+            const match = (contribRes.data || []).find(item =>
+              item.opportunity?._id === opportunityId || item.opportunity === opportunityId
+            );
+            setMyContributions(match?.contributions || []);
+          } catch {}
+        }
+      }
     } catch {
-      Alert.alert('Error', 'Failed to load opportunity details');
+      toast.error('Error', 'Failed to load opportunity details');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRateOpportunity = async (star) => {
-    if (!user) { Alert.alert('Login required', 'Please login to rate'); return; }
+    if (!user) { toast.warning('Login required', 'Please login to rate'); return; }
     setRatingLoading(true);
     try {
       if (userRating === star) {
-        // Toggle off = delete
         const res = await api.delete(`/api/opportunity-ratings/${opportunityId}`);
         setUserRating(null);
         setAverageRating(res.data.averageRating);
@@ -195,7 +243,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         setRatingCount(res.data.ratingCount);
       }
     } catch {
-      Alert.alert('Error', 'Failed to save rating');
+      toast.error('Error', 'Failed to save rating');
     } finally {
       setRatingLoading(false);
     }
@@ -207,9 +255,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     try {
       const res = await api.post('/api/votes', { targetId: opportunityId, targetType: 'opportunity', vote });
       setOpportunity(prev => ({ ...prev, likes: res.data.likes, dislikes: res.data.dislikes, userVote: res.data.userVote }));
-    } catch {
-      Alert.alert('Error', 'Failed to vote');
-    }
+    } catch { toast.error('Error', 'Failed to vote'); }
   };
 
   const handleCommentVote = async (comment, vote) => {
@@ -225,9 +271,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           )
         };
       }));
-    } catch {
-      Alert.alert('Error', 'Failed to vote');
-    }
+    } catch { toast.error('Error', 'Failed to vote'); }
   };
 
   const pickCommentPhoto = async () => {
@@ -260,49 +304,69 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       setComments(prev => [...prev, res.data]);
       setCommentText(''); setCommentPhoto(null); setShowCommentForm(false);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to post comment');
+      toast.error('Error', error.response?.data?.message || 'Failed to post comment');
     } finally {
       setCommentSubmitting(false);
     }
+  };
+
+  const pickReplyPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.7 });
+    if (!result.canceled) setReplyPhoto(result.assets[0]);
   };
 
   const handleAddReply = async () => {
     if (!replyText.trim() || !replyingTo) return;
     setReplySubmitting(true);
     try {
-      const res = await api.post('/api/comments', { opportunityId, text: replyText, parentCommentId: replyingTo.id });
+      let res;
+      if (replyPhoto) {
+        const fd = new FormData();
+        fd.append('opportunityId', opportunityId);
+        fd.append('text', replyText);
+        fd.append('parentCommentId', replyingTo.id);
+        const filename = replyPhoto.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        fd.append('photo', { uri: replyPhoto.uri, name: filename, type: match ? `image/${match[1]}` : 'image/jpeg' });
+        res = await api.post('/api/comments', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      } else {
+        res = await api.post('/api/comments', { opportunityId, text: replyText, parentCommentId: replyingTo.id });
+      }
       setComments(prev => prev.map(c =>
-        c._id === replyingTo.id ? { ...c, replies: [...c.replies, res.data] } : c
+        c._id === replyingTo.id ? { ...c, replies: [...(c.replies || []), res.data] } : c
       ));
       setReplyText('');
+      setReplyPhoto(null);
       setReplyingTo(null);
       setExpandedReplies(prev => ({ ...prev, [replyingTo.id]: true }));
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to post reply');
+      toast.error('Error', error.response?.data?.message || 'Failed to post reply');
     } finally {
       setReplySubmitting(false);
     }
   };
 
-  const handleDeleteComment = async (commentId, parentId) => {
-    Alert.alert('Delete Comment', 'Delete this comment?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/comments/${commentId}`);
-            if (parentId) {
-              setComments(prev => prev.map(c =>
-                c._id === parentId ? { ...c, replies: c.replies.filter(r => r._id !== commentId) } : c
-              ));
-            } else {
-              setComments(prev => prev.filter(c => c._id !== commentId));
-            }
-          } catch { Alert.alert('Error', 'Failed to delete'); }
-        }
+  const handleDeleteComment = (commentId, parentId) => {
+    confirm.show({
+      title: 'Delete Comment',
+      message: 'Delete this comment?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/comments/${commentId}`);
+          if (parentId) {
+            setComments(prev => prev.map(c =>
+              c._id === parentId ? { ...c, replies: c.replies.filter(r => r._id !== commentId) } : c
+            ));
+          } else {
+            setComments(prev => prev.filter(c => c._id !== commentId));
+          }
+        } catch { toast.error('Error', 'Failed to delete'); }
       }
-    ]);
+    });
   };
 
   const openEditComment = (comment) => {
@@ -330,9 +394,37 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       }));
       setEditingComment(null);
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update');
+      toast.error('Error', error.response?.data?.message || 'Failed to update');
     } finally {
       setEditSubmitting(false);
+    }
+  };
+
+  const handleLogContribution = async () => {
+    if (!contribHours || isNaN(contribHours) || Number(contribHours) < 0.5) {
+      toast.warning('Invalid', 'Please enter at least 0.5 hours');
+      return;
+    }
+    setContribSubmitting(true);
+    try {
+      await api.post('/api/contributions', {
+        opportunityId,
+        hours: Number(contribHours),
+        description: contribDesc
+      });
+      toast.success('Submitted!', 'Your contribution has been sent for verification.');
+      setContribModal(false);
+      setContribHours('');
+      setContribDesc('');
+      const contribRes = await api.get('/api/contributions/my-opportunities');
+      const match = (contribRes.data || []).find(item =>
+        item.opportunity?._id === opportunityId || item.opportunity === opportunityId
+      );
+      setMyContributions(match?.contributions || []);
+    } catch (error) {
+      toast.error('Error', error.response?.data?.message || 'Failed to submit');
+    } finally {
+      setContribSubmitting(false);
     }
   };
 
@@ -349,22 +441,6 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleDelete = () => {
-    Alert.alert('Delete Opportunity', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/opportunities/${opportunityId}`);
-            Alert.alert('Deleted', 'Opportunity removed');
-            navigation.goBack();
-          } catch { Alert.alert('Error', 'Failed to delete'); }
-        }
-      }
-    ]);
-  };
-
   const formatDateRange = (opp) => {
     if (opp.startDate && opp.endDate) return `${new Date(opp.startDate).toDateString()} — ${new Date(opp.endDate).toDateString()}`;
     if (opp.date) return new Date(opp.date).toDateString();
@@ -375,7 +451,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     handleDeleteComment, handleCommentVote,
     setReplyingTo, replyingTo,
     setExpandedReplies, expandedReplies,
-    handleAddReply, replyText, setReplyText, replySubmitting,
+    handleAddReply, replyText, setReplyText, replyPhoto, pickReplyPhoto, replySubmitting,
     openEditComment,
     scrollToEnd: () => scrollViewRef.current?.scrollToEnd({ animated: true })
   };
@@ -386,6 +462,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const likeActive = opportunity.userVote === 'like';
   const dislikeActive = opportunity.userVote === 'dislike';
 
+  const hasContact = opportunity.responsibleName || opportunity.responsibleEmail || opportunity.responsiblePhone;
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'android' ? 80 : 0}>
     <ScrollView ref={scrollViewRef} style={styles.container} keyboardShouldPersistTaps="handled">
@@ -393,9 +471,9 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         <Image source={{ uri: `${BASE_URL}/${opportunity.bannerImage}` }} style={styles.bannerImage} resizeMode="cover" />
       ) : null}
 
-      {isPast && <View style={styles.pastBanner}><Text style={styles.pastBannerText}>⏰ This opportunity has ended</Text></View>}
+      {isPast && <View style={styles.pastBanner}><Text style={styles.pastBannerText}>This opportunity has ended</Text></View>}
       {opportunity.status === 'closed' && !isPast && (
-        <View style={styles.closedBanner}><Text style={styles.closedBannerText}>🔒 Applications are closed</Text></View>
+        <View style={styles.closedBanner}><Text style={styles.closedBannerText}>Applications are currently closed</Text></View>
       )}
 
       <View style={styles.headerCard}>
@@ -404,34 +482,57 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           <View style={styles.categoryBadge}><Text style={styles.categoryText}>{opportunity.category}</Text></View>
           {opportunity.averageRating && (
             <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>⭐ {opportunity.averageRating} ({opportunity.reviewCount})</Text>
+              <Ionicons name="star" size={12} color="#f39c12" />
+              <Text style={styles.ratingText}> {opportunity.averageRating} ({opportunity.reviewCount})</Text>
             </View>
           )}
         </View>
         <View style={styles.voteRow}>
           <TouchableOpacity style={[styles.voteBtn, likeActive && styles.voteBtnLikeActive]} onPress={() => handleVote('like')}>
-            <Text style={styles.voteBtnText}>👍 {opportunity.likes || 0} Likes</Text>
+            <Ionicons name="thumbs-up-outline" size={14} color="#fff" />
+            <Text style={styles.voteBtnText}> {opportunity.likes || 0}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.voteBtn, dislikeActive && styles.voteBtnDislikeActive]} onPress={() => handleVote('dislike')}>
-            <Text style={styles.voteBtnText}>👎 {opportunity.dislikes || 0} Dislikes</Text>
+            <Ionicons name="thumbs-down-outline" size={14} color="#fff" />
+            <Text style={styles.voteBtnText}> {opportunity.dislikes || 0}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Details Card */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
-        {opportunity.organization ? <Text style={styles.detail}>🏢 {opportunity.organization}</Text> : null}
-        <Text style={styles.detail}>📍 {opportunity.location}</Text>
-        <Text style={styles.detail}>📅 {formatDateRange(opportunity)}</Text>
-        <Text style={styles.detail}>👥 {opportunity.spotsAvailable} spots available</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('PublisherProfile', { publisherId: opportunity.createdBy?._id })}>
-          <Text style={[styles.detail, styles.publisherLink]}>👤 Posted by: {opportunity.createdBy?.name}</Text>
-        </TouchableOpacity>
-        {opportunity.responsibleName ? <Text style={styles.detail}>🙋 {opportunity.responsibleName}</Text> : null}
-        {opportunity.responsibleEmail ? <Text style={styles.detail}>✉️ {opportunity.responsibleEmail}</Text> : null}
-        {opportunity.responsiblePhone ? <Text style={styles.detail}>📞 {opportunity.responsiblePhone}</Text> : null}
+        {opportunity.organization ? (
+          <DetailRow icon="business-outline" label="Organization" value={opportunity.organization} />
+        ) : null}
+        <DetailRow icon="location-outline" label="Location" value={opportunity.location} />
+        <DetailRow icon="calendar-outline" label="Date" value={formatDateRange(opportunity)} />
+        <DetailRow icon="people-outline" label="Spots Available" value={`${opportunity.spotsAvailable} spots`} />
+        <DetailRow
+          icon="person-outline"
+          label="Posted by"
+          value={opportunity.createdBy?.name}
+          valueStyle={styles.publisherLink}
+          onPress={() => navigation.navigate('PublisherProfile', { publisherId: opportunity.createdBy?._id })}
+        />
+
+        {hasContact && (
+          <View style={styles.contactSection}>
+            <Text style={styles.contactHeader}>Responsible Person</Text>
+            {opportunity.responsibleName ? (
+              <DetailRow icon="person-circle-outline" label="Name" value={opportunity.responsibleName} />
+            ) : null}
+            {opportunity.responsibleEmail ? (
+              <DetailRow icon="mail-outline" label="Email" value={opportunity.responsibleEmail} />
+            ) : null}
+            {opportunity.responsiblePhone ? (
+              <DetailRow icon="call-outline" label="Phone" value={opportunity.responsiblePhone} />
+            ) : null}
+          </View>
+        )}
       </View>
 
+      {/* About Card */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>About</Text>
         <Text style={styles.description}>{opportunity.description}</Text>
@@ -473,20 +574,24 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       {/* Actions */}
       <View style={styles.buttonContainer}>
         {isCreator ? (
-          <>
-            <TouchableOpacity style={styles.manageButton} onPress={() => navigation.navigate('CreatorOpportunityDetail', { opportunityId })}>
-              <Text style={styles.manageButtonText}>Manage</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-              <Text style={styles.deleteButtonText}>Delete Opportunity</Text>
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity style={styles.manageButton} onPress={() => navigation.navigate('CreatorOpportunityDetail', { opportunityId })}>
+            <Ionicons name="settings-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={styles.manageButtonText}>Manage Opportunity</Text>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={[styles.applyButton, (isPast || opportunity.status !== 'open') && styles.disabledButton]}
             onPress={() => {
-              if (isPast) { Alert.alert('Ended', 'This opportunity has already ended.'); return; }
-              if (opportunity.status === 'closed') { Alert.alert('Closed', 'Applications are closed for this opportunity.'); return; }
+              if (isPast) { toast.info('Ended', 'This opportunity has already ended.'); return; }
+              if (opportunity.status === 'closed') { toast.info('Closed', 'Applications are closed for this opportunity.'); return; }
+              if (myApplicationStatus === 'pending') {
+                toast.info('Already Applied', 'Your application is under review. Check My Applications for status.');
+                return;
+              }
+              if (myApplicationStatus === 'approved') {
+                toast.info('Already Accepted', 'You have already been accepted for this opportunity.');
+                return;
+              }
               navigation.navigate('Apply', { opportunity });
             }}
             disabled={isPast || opportunity.status !== 'open'}
@@ -498,13 +603,49 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         )}
       </View>
 
+      {/* Contribution Stats — shown to accepted volunteers */}
+      {myApplicationStatus === 'approved' && (
+        <View style={styles.card}>
+          <View style={styles.contribHeader}>
+            <Ionicons name="trophy-outline" size={18} color="#27ae60" style={{ marginRight: 6 }} />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>My Contribution</Text>
+          </View>
+          <View style={styles.contribStatsRow}>
+            <View style={styles.contribStatBox}>
+              <Text style={styles.contribStatValue}>
+                {myContributions.filter(c => c.status === 'verified').reduce((s, c) => s + c.hours, 0)}
+              </Text>
+              <Text style={styles.contribStatLabel}>hrs verified</Text>
+            </View>
+            <View style={styles.contribStatBox}>
+              <Text style={[styles.contribStatValue, { color: '#f39c12' }]}>
+                {myContributions.filter(c => c.status === 'pending').length}
+              </Text>
+              <Text style={styles.contribStatLabel}>pending</Text>
+            </View>
+            <View style={styles.contribStatBox}>
+              <Text style={[styles.contribStatValue, { color: '#9b59b6' }]}>
+                {myContributions.filter(c => c.status === 'verified').reduce((s, c) => s + c.hours, 0) * 10}
+              </Text>
+              <Text style={styles.contribStatLabel}>pts earned</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.logContribBtn} onPress={() => { setContribHours(''); setContribDesc(''); setContribModal(true); }}>
+            <Ionicons name="add-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={styles.logContribBtnText}>Log Contribution Hours</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Rate This Opportunity */}
       {user && !isCreator && (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Rate This Opportunity</Text>
           <View style={styles.ratingRow}>
             {averageRating ? (
-              <Text style={styles.avgRatingText}>⭐ {averageRating} avg ({ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'})</Text>
+              <Text style={styles.avgRatingText}>
+                <Ionicons name="star" size={14} color="#f39c12" /> {averageRating} average ({ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'})
+              </Text>
             ) : (
               <Text style={styles.noRatingText}>No ratings yet — be the first!</Text>
             )}
@@ -515,7 +656,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           <View style={styles.ratingStars}>
             {[1,2,3,4,5].map(star => (
               <TouchableOpacity key={star} onPress={() => handleRateOpportunity(star)} disabled={ratingLoading}>
-                <Text style={styles.ratingStar}>{userRating >= star ? '⭐' : '☆'}</Text>
+                <Ionicons name={userRating >= star ? 'star' : 'star-outline'} size={34} color="#f39c12" />
               </TouchableOpacity>
             ))}
             {ratingLoading && <ActivityIndicator size="small" color="#f39c12" style={{ marginLeft: 8 }} />}
@@ -527,13 +668,13 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Comments {comments.length > 0 ? `(${comments.length})` : ''}</Text>
 
-        {/* Post a comment */}
         {user && !showCommentForm && (
           <TouchableOpacity style={styles.addCommentButton} onPress={() => {
             setShowCommentForm(true);
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150);
           }}>
-            <Text style={styles.addCommentButtonText}>✍️ Write a Comment</Text>
+            <Ionicons name="create-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={styles.addCommentButtonText}>Write a Comment</Text>
           </TouchableOpacity>
         )}
 
@@ -550,7 +691,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               numberOfLines={4}
             />
             <TouchableOpacity style={styles.photoPickerButton} onPress={pickCommentPhoto}>
-              <Text style={styles.photoPickerText}>{commentPhoto ? '✅ Photo selected' : '📷 Add a Photo (optional)'}</Text>
+              <Ionicons name={commentPhoto ? 'checkmark-circle' : 'camera-outline'} size={16} color="#9b59b6" style={{ marginRight: 6 }} />
+              <Text style={styles.photoPickerText}>{commentPhoto ? 'Photo selected' : 'Add a Photo (optional)'}</Text>
             </TouchableOpacity>
             {commentPhoto && <Image source={{ uri: commentPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />}
             <View style={styles.formButtons}>
@@ -573,6 +715,50 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         )}
       </View>
 
+      {/* Log Contribution Modal */}
+      <Modal visible={contribModal} transparent animationType="slide" onRequestClose={() => setContribModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setContribModal(false)}>
+          <View style={styles.editModal} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.formTitle}>Log Contribution</Text>
+            <Text style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{opportunity?.title}</Text>
+            <Text style={styles.contribInputLabel}>Hours *</Text>
+            <TextInput
+              style={styles.contribInput}
+              placeholder="e.g. 2.5"
+              placeholderTextColor="#aaa"
+              value={contribHours}
+              onChangeText={setContribHours}
+              keyboardType="decimal-pad"
+            />
+            <Text style={styles.contribInputLabel}>Description (optional)</Text>
+            <TextInput
+              style={[styles.contribInput, { minHeight: 70, textAlignVertical: 'top' }]}
+              placeholder="What did you do?"
+              placeholderTextColor="#aaa"
+              value={contribDesc}
+              onChangeText={setContribDesc}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={styles.contribPointsPreview}>
+              <Ionicons name="trophy-outline" size={14} color="#9b59b6" />
+              <Text style={styles.contribPointsText}>
+                {' '}Earns <Text style={{ fontWeight: 'bold', color: '#9b59b6' }}>{Math.floor(Number(contribHours || 0) * 10)} pts</Text> once verified
+              </Text>
+            </View>
+            <View style={styles.formButtons}>
+              <TouchableOpacity style={styles.submitCommentButton} onPress={handleLogContribution} disabled={contribSubmitting}>
+                {contribSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitCommentText}>Submit</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelCommentButton} onPress={() => setContribModal(false)}>
+                <Text style={styles.cancelCommentText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Edit Comment Modal */}
       <Modal visible={!!editingComment} transparent animationType="slide" onRequestClose={() => setEditingComment(null)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEditingComment(null)}>
@@ -588,7 +774,8 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               placeholderTextColor="#aaa"
             />
             <TouchableOpacity style={styles.photoPickerButton} onPress={pickEditPhoto}>
-              <Text style={styles.photoPickerText}>{editPhoto ? '✅ New photo selected' : '📷 Change photo (optional)'}</Text>
+              <Ionicons name={editPhoto ? 'checkmark-circle' : 'camera-outline'} size={16} color="#9b59b6" style={{ marginRight: 6 }} />
+              <Text style={styles.photoPickerText}>{editPhoto ? 'New photo selected' : 'Change photo (optional)'}</Text>
             </TouchableOpacity>
             {editPhoto && <Image source={{ uri: editPhoto.uri }} style={styles.formPhotoPreview} resizeMode="cover" />}
             <View style={styles.formButtons}>
@@ -609,7 +796,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
           <View style={styles.donorsHeader}>
             <Text style={styles.donorsTitle}>{donorsModal?.name}</Text>
             <TouchableOpacity onPress={() => setDonorsModal(null)} style={styles.donorsCloseBtn}>
-              <Text style={styles.donorsCloseText}>✕</Text>
+              <Ionicons name="close" size={22} color="#fff" />
             </TouchableOpacity>
           </View>
           <Text style={styles.donorsSubtitle}>Donors ranked by contribution</Text>
@@ -657,7 +844,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
   categoryBadge: { backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  ratingBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  ratingBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row', alignItems: 'center' },
   ratingText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   voteRow: { flexDirection: 'row', gap: 10 },
   voteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
@@ -665,9 +852,17 @@ const styles = StyleSheet.create({
   voteBtnDislikeActive: { backgroundColor: 'rgba(231,76,60,0.4)', borderColor: '#fff' },
   voteBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
-  detail: { fontSize: 15, color: '#555', marginBottom: 7 },
-  publisherLink: { color: '#2e86de', textDecorationLine: 'underline' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 12 },
+  // Detail rows
+  detailRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  detailIconWrap: { width: 30, alignItems: 'center', paddingTop: 2 },
+  detailTextWrap: { flex: 1 },
+  detailLabel: { fontSize: 11, color: '#aaa', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  detailValue: { fontSize: 15, color: '#333', fontWeight: '500' },
+  publisherLink: { color: '#2e86de' },
+  // Contact section
+  contactSection: { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
+  contactHeader: { fontSize: 13, fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   description: { fontSize: 16, color: '#555', lineHeight: 24 },
   fundraiserCard: { backgroundColor: '#fff', borderRadius: 10, padding: 15, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#27ae60' },
   fundraiserCardDone: { borderLeftColor: '#888', backgroundColor: '#fafafa' },
@@ -691,28 +886,22 @@ const styles = StyleSheet.create({
   applyButton: { backgroundColor: '#27ae60', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
   disabledButton: { backgroundColor: '#aaa' },
   applyButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  manageButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  manageButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center' },
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  deleteButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
-  deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  // Rating section
+  // Rating
   ratingRow: { marginBottom: 6 },
   avgRatingText: { fontSize: 15, color: '#f39c12', fontWeight: 'bold' },
   noRatingText: { fontSize: 13, color: '#aaa' },
   ratingHint: { fontSize: 12, color: '#888', marginBottom: 8 },
   ratingStars: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  ratingStar: { fontSize: 34 },
   // Comments
   noFeedbackText: { color: '#999', fontSize: 14, textAlign: 'center', padding: 10 },
-  addCommentButton: { marginBottom: 14, backgroundColor: '#9b59b6', borderRadius: 10, padding: 12, alignItems: 'center' },
+  addCommentButton: { marginBottom: 14, backgroundColor: '#9b59b6', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   addCommentButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   commentForm: { marginBottom: 14, backgroundColor: '#f8f4ff', borderRadius: 10, padding: 15 },
   formTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12 },
-  formLabel: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
-  starContainer: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  star: { fontSize: 32 },
   formTextArea: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 15, borderWidth: 1, borderColor: '#ddd', minHeight: 90, textAlignVertical: 'top', color: '#333', marginBottom: 12 },
-  photoPickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#9b59b6', borderStyle: 'dashed', borderRadius: 8, padding: 14, alignItems: 'center', marginBottom: 12 },
+  photoPickerButton: { backgroundColor: '#f0f4f8', borderWidth: 2, borderColor: '#9b59b6', borderStyle: 'dashed', borderRadius: 8, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   photoPickerText: { color: '#9b59b6', fontWeight: 'bold', fontSize: 14 },
   formPhotoPreview: { width: '100%', height: 180, borderRadius: 8, marginBottom: 12 },
   formButtons: { flexDirection: 'row', gap: 10 },
@@ -720,7 +909,6 @@ const styles = StyleSheet.create({
   submitCommentText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   cancelCommentButton: { flex: 1, borderWidth: 1, borderColor: '#999', borderRadius: 8, padding: 12, alignItems: 'center' },
   cancelCommentText: { color: '#555', fontWeight: 'bold', fontSize: 15 },
-  // Comment items
   commentItem: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginBottom: 10 },
   commentItemReply: { backgroundColor: '#f0f4f8', marginLeft: 20, marginTop: 6, marginBottom: 4 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
@@ -732,8 +920,7 @@ const styles = StyleSheet.create({
   commentActions: { flexDirection: 'row', gap: 6 },
   editBtn: { backgroundColor: '#2e86de', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   editBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
-  commentDeleteBtn: { backgroundColor: '#ffe0e0', borderRadius: 12, padding: 4, paddingHorizontal: 7 },
-  commentDeleteText: { color: '#e74c3c', fontSize: 12, fontWeight: 'bold' },
+  commentDeleteBtn: { backgroundColor: '#ffe0e0', borderRadius: 12, padding: 5 },
   commentRating: { fontSize: 14, marginBottom: 4 },
   commentText: { fontSize: 14, color: '#444', lineHeight: 20, marginBottom: 6 },
   commentPhoto: { width: '100%', height: 160, borderRadius: 8, marginBottom: 8 },
@@ -742,24 +929,25 @@ const styles = StyleSheet.create({
   commentVoteBtnLikeActive: { backgroundColor: '#e8f4fd', borderColor: '#2e86de' },
   commentVoteBtnDislikeActive: { backgroundColor: '#ffe8e8', borderColor: '#e74c3c' },
   commentVoteBtnText: { fontSize: 12, color: '#555' },
-  replyBtn: { backgroundColor: '#f0f4f8', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#ddd' },
+  replyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f4f8', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#ddd' },
   replyBtnText: { fontSize: 12, color: '#555', fontWeight: '600' },
   showRepliesBtn: { backgroundColor: '#e8f4fd', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
   showRepliesBtnText: { fontSize: 12, color: '#2e86de', fontWeight: '600' },
-  replyInputRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  replyFormContainer: { marginTop: 8 },
+  replyInputRow: { flexDirection: 'row', gap: 8 },
   replyInput: { flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 13, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 38, textAlignVertical: 'top' },
   replySubmitBtn: { backgroundColor: '#2e86de', borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center' },
   replySubmitText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-  // Edit modal
+  replyPhotoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, padding: 8, backgroundColor: '#f8f4ff', borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
+  replyPhotoBtnText: { fontSize: 12, color: '#9b59b6', fontWeight: '600' },
+  replyPhotoPreview: { width: 80, height: 80, borderRadius: 8, marginTop: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   editModal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
   modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  // Donors modal
   donorsModal: { flex: 1, backgroundColor: '#f0f4f8' },
   donorsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#27ae60', padding: 20, paddingTop: 15 },
   donorsTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', flex: 1 },
   donorsCloseBtn: { padding: 5 },
-  donorsCloseText: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
   donorsSubtitle: { fontSize: 13, color: '#888', paddingHorizontal: 15, paddingTop: 10 },
   noDonorsText: { textAlign: 'center', color: '#999', marginTop: 50, fontSize: 16 },
   donorCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, elevation: 2, flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -769,7 +957,19 @@ const styles = StyleSheet.create({
   donorName: { fontSize: 15, fontWeight: 'bold', color: '#333' },
   donorMessage: { fontSize: 13, color: '#888', fontStyle: 'italic', marginTop: 2 },
   donorDate: { fontSize: 11, color: '#aaa', marginTop: 3 },
-  donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' }
+  donorAmount: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' },
+  // Contribution stats (accepted volunteer view)
+  contribHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  contribStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  contribStatBox: { flex: 1, backgroundColor: '#f0fff4', borderRadius: 10, padding: 10, alignItems: 'center' },
+  contribStatValue: { fontSize: 22, fontWeight: 'bold', color: '#27ae60' },
+  contribStatLabel: { fontSize: 10, color: '#888', marginTop: 2 },
+  logContribBtn: { backgroundColor: '#27ae60', borderRadius: 10, padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  logContribBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  contribInputLabel: { fontSize: 13, fontWeight: 'bold', color: '#555', marginBottom: 6 },
+  contribInput: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, fontSize: 15, borderWidth: 1, borderColor: '#ddd', color: '#333', marginBottom: 14 },
+  contribPointsPreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f4ff', borderRadius: 10, padding: 12, marginBottom: 16 },
+  contribPointsText: { fontSize: 13, color: '#555' }
 });
 
 export default OpportunityDetailScreen;

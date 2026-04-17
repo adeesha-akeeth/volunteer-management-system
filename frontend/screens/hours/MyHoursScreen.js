@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity,
+  ActivityIndicator, TouchableOpacity,
   TextInput, RefreshControl, ScrollView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../components/Toast';
+import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const MyHoursScreen = () => {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [hours, setHours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,7 +29,7 @@ const MyHoursScreen = () => {
       const response = await api.get('/api/hours/my');
       setHours(response.data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load hours');
+      toast.error('Error', 'Failed to load hours');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,7 +62,7 @@ const MyHoursScreen = () => {
   const pickProofImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow access to your photo library');
+      toast.warning('Permission required', 'Please allow access to your photo library');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -73,7 +77,7 @@ const MyHoursScreen = () => {
 
   const handleLogHours = async () => {
     if (!selectedOpportunity || !hoursLogged || !date) {
-      Alert.alert('Error', 'Please select an opportunity, hours and date');
+      toast.error('Error', 'Please select an opportunity, hours and date');
       return;
     }
     setSubmitting(true);
@@ -97,7 +101,7 @@ const MyHoursScreen = () => {
           description
         });
       }
-      Alert.alert('Success', 'Hours logged successfully!');
+      toast.success('Success', 'Hours logged successfully!');
       setShowForm(false);
       setSelectedOpportunity(null);
       setHoursLogged('');
@@ -106,28 +110,28 @@ const MyHoursScreen = () => {
       setProofImage(null);
       fetchHours();
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to log hours');
+      toast.error('Error', error.response?.data?.message || error.message || 'Failed to log hours');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (hoursId) => {
-    Alert.alert('Delete Record', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/api/hours/${hoursId}`);
-            Alert.alert('Success', 'Hours record deleted');
-            fetchHours();
-          } catch (error) {
-            Alert.alert('Error', 'Failed to delete record');
-          }
+  const handleDelete = (hoursId) => {
+    confirm.show({
+      title: 'Delete Record',
+      message: 'Are you sure you want to delete this hours record?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/hours/${hoursId}`);
+          toast.success('Deleted', 'Hours record deleted');
+          fetchHours();
+        } catch (error) {
+          toast.error('Error', 'Failed to delete record');
         }
       }
-    ]);
+    });
   };
 
   const getStatusColor = (status) => {

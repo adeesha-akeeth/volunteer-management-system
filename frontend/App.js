@@ -7,6 +7,7 @@ import { AuthProvider, AuthContext } from './context/AuthContext';
 import { ActivityIndicator, View, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ToastProvider } from './components/Toast';
+import { ConfirmProvider } from './components/ConfirmModal';
 
 // Auth Screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -18,6 +19,8 @@ import OpportunityDetailScreen from './screens/opportunity/OpportunityDetailScre
 import CreateOpportunityScreen from './screens/opportunity/CreateOpportunityScreen';
 import CreatorOpportunityDetailScreen from './screens/opportunity/CreatorOpportunityDetailScreen';
 import MyCreatedOpportunitiesScreen from './screens/opportunity/MyCreatedOpportunitiesScreen';
+import ManageApplicationsScreen from './screens/opportunity/ManageApplicationsScreen';
+import ManageFundraisersScreen from './screens/opportunity/ManageFundraisersScreen';
 
 // Application Screens
 import ApplyScreen from './screens/application/ApplyScreen';
@@ -52,6 +55,7 @@ import FavouriteDetailScreen from './screens/favourites/FavouriteDetailScreen';
 // Publisher Screens
 import PublisherProfileScreen from './screens/publisher/PublisherProfileScreen';
 import FindPublishersScreen from './screens/publisher/FindPublishersScreen';
+import PublisherCommentsScreen from './screens/publisher/PublisherCommentsScreen';
 
 // Contribution Screens
 import AllContributionsScreen from './screens/contribution/AllContributionsScreen';
@@ -113,10 +117,13 @@ const HomeStack = () => (
     <Stack.Screen name="CreateOpportunity" component={CreateOpportunityScreen} options={{ title: 'Post Opportunity' }} />
     <Stack.Screen name="Apply" component={ApplyScreen} options={{ title: 'Apply' }} />
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
+    <Stack.Screen name="ManageApplications" component={ManageApplicationsScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="ManageFundraisers" component={ManageFundraisersScreen} options={{ title: 'Manage Fundraisers' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
+    <Stack.Screen name="PublisherComments" component={PublisherCommentsScreen} options={{ title: 'Comments & Reviews' }} />
   </Stack.Navigator>
 );
 
@@ -128,6 +135,7 @@ const FavouritesStack = () => (
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
     <Stack.Screen name="FindPublishers" component={FindPublishersScreen} options={({ route }) => ({ title: route.params?.followedOnly ? 'Following' : 'Find Publishers' })} />
+    <Stack.Screen name="PublisherComments" component={PublisherCommentsScreen} options={{ title: 'Comments & Reviews' }} />
   </Stack.Navigator>
 );
 
@@ -135,13 +143,17 @@ const ProfileStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'My Profile' }} />
     <Stack.Screen name="MyApplications" component={MyApplicationsScreen} options={{ title: 'My Applications' }} />
+    <Stack.Screen name="Apply" component={ApplyScreen} options={{ title: 'Application' }} />
     <Stack.Screen name="MyCreatedOpportunities" component={MyCreatedOpportunitiesScreen} options={{ title: 'My Created Opportunities' }} />
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
+    <Stack.Screen name="ManageApplications" component={ManageApplicationsScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="ManageFundraisers" component={ManageFundraisersScreen} options={{ title: 'Manage Fundraisers' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
     <Stack.Screen name="FavouriteDetail" component={FavouriteDetailScreen} options={{ title: 'Favourites' }} />
     <Stack.Screen name="MyLikesComments" component={MyLikesCommentsScreen} options={{ title: 'My Likes & Comments' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
+    <Stack.Screen name="PublisherComments" component={PublisherCommentsScreen} options={{ title: 'Comments & Reviews' }} />
     <Stack.Screen name="AllContributions" component={AllContributionsScreen} options={{ title: 'Verify Contributions' }} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
     <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change Password' }} />
@@ -178,10 +190,12 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" />
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
+        <ConfirmProvider>
+          <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" />
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </ConfirmProvider>
       </ToastProvider>
     </AuthProvider>
   );

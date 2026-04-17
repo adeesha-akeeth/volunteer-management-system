@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, RefreshControl
+  ActivityIndicator, RefreshControl
 } from 'react-native';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const MyCertificatesScreen = () => {
+  const toast = useToast();
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -15,7 +17,7 @@ const MyCertificatesScreen = () => {
       const response = await api.get('/api/certificates/my');
       setCertificates(response.data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load certificates');
+      toast.error('Error', 'Failed to load certificates');
     } finally {
       setLoading(false);
       setRefreshing(false);

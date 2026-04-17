@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, TouchableOpacity, RefreshControl, Image
+  ActivityIndicator, TouchableOpacity, RefreshControl, Image
 } from 'react-native';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const MyCreatedOpportunitiesScreen = ({ navigation }) => {
+  const toast = useToast();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -17,7 +19,7 @@ const MyCreatedOpportunitiesScreen = ({ navigation }) => {
       const response = await api.get('/api/opportunities/my');
       setOpportunities(response.data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load opportunities');
+      toast.error('Error', 'Failed to load opportunities');
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, ActivityIndicator, Image, Alert
+  TextInput, ActivityIndicator, Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useToast } from '../../components/Toast';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const FindPublishersScreen = ({ navigation, route }) => {
+  const toast = useToast();
   const followedOnly = route.params?.followedOnly || false;
 
   const [publishers, setPublishers] = useState([]);
@@ -31,7 +33,7 @@ const FindPublishersScreen = ({ navigation, route }) => {
       }
       setPublishers(data);
     } catch {
-      Alert.alert('Error', 'Failed to load publishers');
+      toast.error('Error', 'Failed to load publishers');
     } finally {
       setLoading(false);
     }
@@ -57,7 +59,7 @@ const FindPublishersScreen = ({ navigation, route }) => {
         ));
       }
     } catch {
-      Alert.alert('Error', 'Failed to update follow');
+      toast.error('Error', 'Failed to update follow');
     } finally {
       setFollowLoading(prev => ({ ...prev, [publisher._id]: false }));
     }

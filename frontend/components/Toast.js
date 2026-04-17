@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useRef, useState, useCallback } from 'react';
 import { Animated, Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 const ToastContext = createContext(null);
 
 const COLORS = {
-  success: { bg: '#1a7d41', border: '#27ae60', icon: '✅' },
-  error:   { bg: '#b52a2a', border: '#e74c3c', icon: '❌' },
-  info:    { bg: '#1a5fa8', border: '#2e86de', icon: 'ℹ️' },
-  warning: { bg: '#b87800', border: '#f39c12', icon: '⚠️' },
+  success: { bg: '#1a7d41', border: '#27ae60', icon: 'checkmark-circle' },
+  error:   { bg: '#b52a2a', border: '#e74c3c', icon: 'close-circle' },
+  info:    { bg: '#1a5fa8', border: '#2e86de', icon: 'information-circle' },
+  warning: { bg: '#b87800', border: '#f39c12', icon: 'warning' },
 };
 
 export const ToastProvider = ({ children }) => {
@@ -54,13 +55,13 @@ export const ToastProvider = ({ children }) => {
           style={[styles.toast, { backgroundColor: theme.bg, borderLeftColor: theme.border, transform: [{ translateY: slideY }], opacity }]}
           pointerEvents="box-none"
         >
-          <Text style={styles.icon}>{theme.icon}</Text>
+          <Ionicons name={theme.icon} size={22} color="#fff" style={styles.icon} />
           <View style={styles.textContainer}>
             {toast.title ? <Text style={styles.title}>{toast.title}</Text> : null}
             {toast.message ? <Text style={styles.message}>{toast.message}</Text> : null}
           </View>
           <TouchableOpacity onPress={dismiss} style={styles.closeBtn}>
-            <Text style={styles.closeText}>✕</Text>
+            <Ionicons name="close" size={18} color="rgba(255,255,255,0.8)" />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -97,10 +98,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     zIndex: 9999,
   },
-  icon: { fontSize: 22, marginRight: 10 },
+  icon: { marginRight: 10 },
   textContainer: { flex: 1 },
   title: { color: '#fff', fontSize: 15, fontWeight: 'bold', marginBottom: 2 },
   message: { color: 'rgba(255,255,255,0.9)', fontSize: 13 },
   closeBtn: { padding: 4, marginLeft: 8 },
-  closeText: { color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: 'bold' },
 });

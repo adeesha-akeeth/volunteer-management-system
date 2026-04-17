@@ -1,11 +1,13 @@
 import React, { useState, useContext } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
+import { useToast } from '../../components/Toast';
 
 const LoginScreen = ({ navigation }) => {
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -13,11 +15,11 @@ const LoginScreen = ({ navigation }) => {
   const { login } = useContext(AuthContext);
 
   const handleLogin = async () => {
-    if (!email || !password) { Alert.alert('Missing Fields', 'Please fill in all fields'); return; }
+    if (!email || !password) { toast.warning('Missing Fields', 'Please fill in all fields'); return; }
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
-    if (!result.success) Alert.alert('Login Failed', result.message);
+    if (!result.success) toast.error('Login Failed', result.message);
   };
 
   return (
