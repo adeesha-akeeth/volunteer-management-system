@@ -8,7 +8,7 @@ const goalSchema = new mongoose.Schema({
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   pointsAtStart: { type: Number, default: 0 },
-  status: { type: String, enum: ['active', 'completed'], default: 'active' },
+  status: { type: String, enum: ['active', 'completed', 'overdue'], default: 'active' },
   completedAt: { type: Date }
 }, { timestamps: true });
 

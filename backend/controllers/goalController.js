@@ -1,4 +1,5 @@
 const Goal = require('../models/Goal');
+const Notification = require('../models/Notification');
 const { computeBasePoints } = require('./pointsController');
 
 const PRESET_BONUS = { 100: 10, 200: 20, 300: 30, 500: 50, 1000: 100 };
@@ -38,10 +39,31 @@ const getMyGoals = async (req, res) => {
       const gained = Math.max(0, currentBase - goal.pointsAtStart);
       const progress = Math.min(gained / goal.targetPoints, 1);
 
-      if (goal.status === 'active' && gained >= goal.targetPoints) {
-        goal.status = 'completed';
-        goal.completedAt = new Date();
-        await goal.save();
+      if (goal.status === 'active') {
+        if (gained >= goal.targetPoints) {
+          goal.status = 'completed';
+          goal.completedAt = new Date();
+          await goal.save();
+          try {
+            await Notification.create({
+              recipient: goal.user,
+              type: 'goal_complete',
+              message: `🎯 Goal achieved — "${goal.title}"! +${goal.bonusPoints} bonus pts awarded.`,
+              relatedId: goal._id
+            });
+          } catch {}
+        } else if (new Date(goal.endDate) < new Date()) {
+          goal.status = 'overdue';
+          await goal.save();
+          try {
+            await Notification.create({
+              recipient: goal.user,
+              type: 'goal_overdue',
+              message: `⏰ Your goal "${goal.title}" passed its deadline without being completed.`,
+              relatedId: goal._id
+            });
+          } catch {}
+        }
       }
 
       return {

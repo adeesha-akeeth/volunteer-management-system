@@ -78,6 +78,12 @@ app.use('/api/points', pointsRoutes);
 const goalRoutes = require('./routes/goalRoutes');
 app.use('/api/goals', goalRoutes);
 
+const userFeedbackRoutes = require('./routes/userFeedbackRoutes');
+app.use('/api/feedback', userFeedbackRoutes);
+
+const adminRoutes = require('./routes/adminRoutes');
+app.use('/api/admin', adminRoutes);
+
 const notificationRoutes = require('./routes/notificationRoutes');
 app.use('/api/notifications', notificationRoutes);
 
@@ -90,10 +96,27 @@ app.use('/api/follows', followRoutes);
 const opportunityRatingRoutes = require('./routes/opportunityRatingRoutes');
 app.use('/api/opportunity-ratings', opportunityRatingRoutes);
 
+// Seed admin user on startup
+const seedAdmin = async () => {
+  try {
+    const User = require('./models/User');
+    const bcrypt = require('bcryptjs');
+    const existing = await User.findOne({ email: 'admin1' });
+    if (!existing) {
+      const hashed = await bcrypt.hash('admin@123', 10);
+      await User.create({ name: 'Admin', email: 'admin1', password: hashed, phone: '', role: 'admin' });
+      console.log('Admin user seeded: email=admin1 password=admin@123');
+    }
+  } catch (err) {
+    console.log('Admin seed error:', err.message);
+  }
+};
+
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('MongoDB connected successfully!');
+    await seedAdmin();
     app.listen(process.env.PORT || 5000, () => {
       console.log(`Server running on port ${process.env.PORT || 5000}`);
     });

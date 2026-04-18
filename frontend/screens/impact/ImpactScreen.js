@@ -27,9 +27,12 @@ const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const GoalCard = ({ goal, onEdit, onDelete }) => {
   const pct = Math.round((goal.progress || 0) * 100);
   const isComplete = goal.status === 'completed';
+  const isOverdue = goal.status === 'overdue';
+
+  const barColor = isComplete ? '#27ae60' : isOverdue ? '#e74c3c' : '#2e86de';
 
   return (
-    <View style={[gStyles.card, isComplete && gStyles.cardDone]}>
+    <View style={[gStyles.card, isComplete && gStyles.cardDone, isOverdue && gStyles.cardOverdue]}>
       <View style={gStyles.cardTop}>
         <View style={{ flex: 1 }}>
           <Text style={gStyles.title} numberOfLines={1}>{goal.title}</Text>
@@ -38,6 +41,11 @@ const GoalCard = ({ goal, onEdit, onDelete }) => {
         {isComplete ? (
           <View style={gStyles.doneBadge}>
             <Text style={gStyles.doneBadgeText}>+{goal.bonusPoints} pts</Text>
+          </View>
+        ) : isOverdue ? (
+          <View style={gStyles.overdueBadge}>
+            <Ionicons name="hourglass-outline" size={12} color="#e74c3c" style={{ marginRight: 3 }} />
+            <Text style={gStyles.overdueBadgeText}>Overdue</Text>
           </View>
         ) : (
           <View style={gStyles.actions}>
@@ -53,11 +61,13 @@ const GoalCard = ({ goal, onEdit, onDelete }) => {
 
       {/* Progress bar */}
       <View style={gStyles.barBg}>
-        <View style={[gStyles.barFill, { width: `${pct}%` }, isComplete && gStyles.barFillDone]} />
+        <View style={[gStyles.barFill, { width: `${pct}%`, backgroundColor: barColor }]} />
       </View>
       <View style={gStyles.barRow}>
         <Text style={gStyles.gained}>{goal.gained} / {goal.targetPoints} pts</Text>
-        <Text style={[gStyles.pct, isComplete && { color: '#27ae60' }]}>{pct}%{isComplete ? ' ✓' : ''}</Text>
+        <Text style={[gStyles.pct, isComplete && { color: '#27ae60' }, isOverdue && { color: '#e74c3c' }]}>
+          {pct}%{isComplete ? ' ✓' : isOverdue ? ' ✗' : ''}
+        </Text>
       </View>
     </View>
   );
@@ -462,6 +472,7 @@ const ImpactScreen = ({ navigation }) => {
 const gStyles = StyleSheet.create({
   card: { backgroundColor: '#f8f4ff', borderRadius: 12, padding: 13, marginBottom: 10, borderWidth: 1, borderColor: '#e8d5f5' },
   cardDone: { backgroundColor: '#f0fff4', borderColor: '#b7e4c7' },
+  cardOverdue: { backgroundColor: '#fff5f5', borderColor: '#f5c6c6', borderLeftWidth: 3, borderLeftColor: '#e74c3c' },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 8 },
   title: { fontSize: 14, fontWeight: 'bold', color: '#333', flex: 1 },
   dates: { fontSize: 11, color: '#999', marginTop: 2 },
@@ -469,9 +480,10 @@ const gStyles = StyleSheet.create({
   iconBtn: { padding: 4 },
   doneBadge: { backgroundColor: '#27ae60', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   doneBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  overdueBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#f5c6c6' },
+  overdueBadgeText: { color: '#e74c3c', fontSize: 12, fontWeight: 'bold' },
   barBg: { height: 8, backgroundColor: '#e0d0f0', borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', backgroundColor: '#9b59b6', borderRadius: 4 },
-  barFillDone: { backgroundColor: '#27ae60' },
   barRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
   gained: { fontSize: 11, color: '#777' },
   pct: { fontSize: 11, fontWeight: 'bold', color: '#9b59b6' }

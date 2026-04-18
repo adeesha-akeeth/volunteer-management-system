@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useContext } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, AuthContext } from './context/AuthContext';
@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ToastProvider } from './components/Toast';
 import { ConfirmProvider } from './components/ConfirmModal';
+import { ThemeContext, lightTheme, darkTheme } from './context/ThemeContext';
 
 // Auth Screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -28,8 +29,11 @@ import AllCreatorApplicationsScreen from './screens/opportunity/AllCreatorApplic
 import ApplyScreen from './screens/application/ApplyScreen';
 import MyApplicationsScreen from './screens/application/MyApplicationsScreen';
 
-// Feedback Screens
+// Feedback / Admin Screens
 import SubmitFeedbackScreen from './screens/feedback/SubmitFeedbackScreen';
+import FeedbackScreen from './screens/feedback/FeedbackScreen';
+import AdminFeedbackScreen from './screens/feedback/AdminFeedbackScreen';
+import AdminAnalysisScreen from './screens/admin/AdminAnalysisScreen';
 
 // Profile Screen
 import ProfileScreen from './screens/profile/ProfileScreen';
@@ -72,31 +76,49 @@ import ChangePasswordScreen from './screens/profile/ChangePasswordScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const MainTabs = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarActiveTintColor: '#2e86de',
-      tabBarInactiveTintColor: 'gray',
-      tabBarStyle: { paddingBottom: 5 },
-      tabBarIcon: ({ focused, color, size }) => {
-        let iconName;
-        if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-        else if (route.name === 'Favourites') iconName = focused ? 'heart' : 'heart-outline';
-        else if (route.name === 'Donations') iconName = focused ? 'cash' : 'cash-outline';
-        else if (route.name === 'Impact') iconName = focused ? 'trophy' : 'trophy-outline';
-        else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
-        return <Ionicons name={iconName} size={size} color={color} />;
-      }
-    })}
-  >
-    <Tab.Screen name="Home" component={HomeStack} />
-    <Tab.Screen name="Favourites" component={FavouritesStack} />
-    <Tab.Screen name="Donations" component={DonationsStack} />
-    <Tab.Screen name="Impact" component={ImpactStack} />
-    <Tab.Screen name="Profile" component={ProfileStack} />
-  </Tab.Navigator>
-);
+// Custom nav themes
+const adminNavTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: '#58a6ff',
+    background: '#0d1117',
+    card: '#161b22',
+    text: '#e6edf3',
+    border: '#30363d',
+    notification: '#f85149',
+  }
+};
+
+const ThemedMainTabs = () => {
+  const t = useContext(ThemeContext);
+  const isAdmin = t.mode === 'dark';
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: isAdmin ? '#58a6ff' : '#2e86de',
+        tabBarInactiveTintColor: isAdmin ? '#6e7681' : 'gray',
+        tabBarStyle: { paddingBottom: 5, backgroundColor: t.tabBg, borderTopColor: t.border },
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === 'Favourites') iconName = focused ? 'heart' : 'heart-outline';
+          else if (route.name === 'Donations') iconName = focused ? 'cash' : 'cash-outline';
+          else if (route.name === 'Impact') iconName = focused ? 'trophy' : 'trophy-outline';
+          else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
+          return <Ionicons name={iconName} size={size} color={color} />;
+        }
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Favourites" component={FavouritesStack} />
+      <Tab.Screen name="Donations" component={DonationsStack} />
+      <Tab.Screen name="Impact" component={ImpactStack} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
+    </Tab.Navigator>
+  );
+};
 
 const ImpactStack = () => (
   <Stack.Navigator>
@@ -131,7 +153,7 @@ const DonationsStack = () => (
 
 const HomeStack = () => (
   <Stack.Navigator>
-    <Stack.Screen name="OpportunityList" component={OpportunityListScreen} options={{ title: 'Opportunities' }} />
+    <Stack.Screen name="OpportunityList" component={OpportunityListScreen} options={{ title: 'Kind Hands' }} />
     <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} options={{ title: 'Details' }} />
     <Stack.Screen name="CreateOpportunity" component={CreateOpportunityScreen} options={{ title: 'Post Opportunity' }} />
     <Stack.Screen name="Apply" component={ApplyScreen} options={{ title: 'Apply' }} />
@@ -149,6 +171,8 @@ const HomeStack = () => (
     <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
     <Stack.Screen name="PublisherComments" component={PublisherCommentsScreen} options={{ title: 'Comments & Reviews' }} />
+    <Stack.Screen name="AdminAnalysis" component={AdminAnalysisScreen} options={{ title: 'Platform Analytics' }} />
+    <Stack.Screen name="AdminFeedback" component={AdminFeedbackScreen} options={{ title: 'Feedbacks & Queries' }} />
   </Stack.Navigator>
 );
 
@@ -187,31 +211,43 @@ const ProfileStack = () => (
     <Stack.Screen name="MyFundraisers" component={MyFundraisersScreen} options={{ title: 'My Fundraisers' }} />
     <Stack.Screen name="CreateFundraiser" component={CreateFundraiserScreen} options={{ title: 'Create Fundraiser' }} />
     <Stack.Screen name="ManageMyFundraiser" component={ManageMyFundraiserScreen} options={{ title: 'Manage Fundraiser' }} />
+    <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ title: 'My Feedback' }} />
   </Stack.Navigator>
 );
 
 const RootNavigator = () => {
   const { user, loading } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
+  const theme = isAdmin ? darkTheme : lightTheme;
+
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2e86de" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0d1117' }}>
+        <ActivityIndicator size="large" color="#58a6ff" />
       </View>
     );
   }
+
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          <Stack.Screen name="Main" component={MainTabs} />
-        ) : (
-          <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-          </>
-        )}
-      </Stack.Navigator>
-    </View>
+    <ThemeContext.Provider value={theme}>
+      <StatusBar
+        barStyle={theme.statusBar}
+        backgroundColor={theme.statusBarBg}
+        translucent={false}
+      />
+      <NavigationContainer theme={isAdmin ? adminNavTheme : DefaultTheme}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {user ? (
+            <Stack.Screen name="Main" component={ThemedMainTabs} />
+          ) : (
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ThemeContext.Provider>
   );
 };
 
@@ -221,10 +257,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" translucent={false} />
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
+            <RootNavigator />
           </ConfirmProvider>
         </ToastProvider>
       </AuthProvider>
