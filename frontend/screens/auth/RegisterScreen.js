@@ -111,7 +111,7 @@ const RegisterScreen = ({ navigation }) => {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join us as a volunteer today</Text>
+        <Text style={styles.subtitle}>Join Kind Hands today</Text>
 
         {/* Profile Photo */}
         <TouchableOpacity style={styles.photoPicker} onPress={pickPhoto}>

@@ -25,7 +25,7 @@ const LoginScreen = ({ navigation }) => {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <View style={styles.inner}>
-        <Text style={styles.title}>Volunteer App</Text>
+        <Text style={styles.title}>Kind Hands</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
 
         <TextInput style={styles.input} placeholderTextColor="#999" placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
