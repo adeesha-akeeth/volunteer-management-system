@@ -15,7 +15,7 @@ const AllContributionsScreen = () => {
   const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState('pending');
+  const [filter, setFilter] = useState('all');
   const [actionLoading, setActionLoading] = useState({});
 
   const fetchData = async () => {
@@ -45,13 +45,14 @@ const AllContributionsScreen = () => {
     }
   };
 
-  const filtered = contributions.filter(c => c.status === filter);
-
   const counts = {
+    all: contributions.length,
     pending: contributions.filter(c => c.status === 'pending').length,
     verified: contributions.filter(c => c.status === 'verified').length,
     rejected: contributions.filter(c => c.status === 'rejected').length
   };
+
+  const filtered = filter === 'all' ? contributions : contributions.filter(c => c.status === filter);
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#9b59b6" /></View>;
 
@@ -59,14 +60,14 @@ const AllContributionsScreen = () => {
     <View style={styles.container}>
       {/* Filter tabs */}
       <View style={styles.filterRow}>
-        {['pending', 'verified', 'rejected'].map(f => (
+        {['all', 'pending', 'verified', 'rejected'].map(f => (
           <TouchableOpacity
             key={f}
             style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
             onPress={() => setFilter(f)}
           >
             <Text style={[styles.filterBtnText, filter === f && styles.filterBtnTextActive]}>
-              {STATUS_ICON[f]} {f.charAt(0).toUpperCase() + f.slice(1)} {counts[f] > 0 ? `(${counts[f]})` : ''}
+              {f === 'all' ? '📋' : STATUS_ICON[f]} {f.charAt(0).toUpperCase() + f.slice(1)} {counts[f] > 0 ? `(${counts[f]})` : ''}
             </Text>
           </TouchableOpacity>
         ))}

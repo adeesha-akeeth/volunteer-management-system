@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { ActivityIndicator, View, StatusBar, TouchableOpacity } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ToastProvider } from './components/Toast';
 import { ConfirmProvider } from './components/ConfirmModal';
@@ -21,6 +22,7 @@ import CreatorOpportunityDetailScreen from './screens/opportunity/CreatorOpportu
 import MyCreatedOpportunitiesScreen from './screens/opportunity/MyCreatedOpportunitiesScreen';
 import ManageApplicationsScreen from './screens/opportunity/ManageApplicationsScreen';
 import ManageFundraisersScreen from './screens/opportunity/ManageFundraisersScreen';
+import AllCreatorApplicationsScreen from './screens/opportunity/AllCreatorApplicationsScreen';
 
 // Application Screens
 import ApplyScreen from './screens/application/ApplyScreen';
@@ -76,7 +78,7 @@ const MainTabs = () => (
       headerShown: false,
       tabBarActiveTintColor: '#2e86de',
       tabBarInactiveTintColor: 'gray',
-      tabBarStyle: { paddingBottom: 5, height: 60 },
+      tabBarStyle: { paddingBottom: 5 },
       tabBarIcon: ({ focused, color, size }) => {
         let iconName;
         if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
@@ -135,6 +137,7 @@ const HomeStack = () => (
     <Stack.Screen name="Apply" component={ApplyScreen} options={{ title: 'Apply' }} />
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
     <Stack.Screen name="ManageApplications" component={ManageApplicationsScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="AllCreatorApplications" component={AllCreatorApplicationsScreen} options={{ title: 'All Applications' }} />
     <Stack.Screen name="ManageFundraisers" component={ManageFundraisersScreen} options={{ title: 'Manage Fundraisers' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="Donate" component={DonateScreen} options={{ title: 'Make a Donation' }} />
@@ -142,6 +145,7 @@ const HomeStack = () => (
     <Stack.Screen name="MyFundraisers" component={MyFundraisersScreen} options={{ title: 'My Fundraisers' }} />
     <Stack.Screen name="CreateFundraiser" component={CreateFundraiserScreen} options={{ title: 'Create Fundraiser' }} />
     <Stack.Screen name="ManageMyFundraiser" component={ManageMyFundraiserScreen} options={{ title: 'Manage Fundraiser' }} />
+    <Stack.Screen name="AllContributions" component={AllContributionsScreen} options={{ title: 'Verify Contributions' }} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
     <Stack.Screen name="PublisherProfile" component={PublisherProfileScreen} options={{ title: 'Publisher Profile' }} />
     <Stack.Screen name="PublisherComments" component={PublisherCommentsScreen} options={{ title: 'Comments & Reviews' }} />
@@ -168,6 +172,7 @@ const ProfileStack = () => (
     <Stack.Screen name="MyCreatedOpportunities" component={MyCreatedOpportunitiesScreen} options={{ title: 'My Created Opportunities' }} />
     <Stack.Screen name="CreatorOpportunityDetail" component={CreatorOpportunityDetailScreen} options={{ title: 'Manage Opportunity' }} />
     <Stack.Screen name="ManageApplications" component={ManageApplicationsScreen} options={{ title: 'Manage Applications' }} />
+    <Stack.Screen name="AllCreatorApplications" component={AllCreatorApplicationsScreen} options={{ title: 'All Applications' }} />
     <Stack.Screen name="ManageFundraisers" component={ManageFundraisersScreen} options={{ title: 'Manage Fundraisers' }} />
     <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Submit Feedback' }} />
     <Stack.Screen name="FavouritesList" component={FavouritesScreen} options={{ title: 'My Favourites' }} />
@@ -195,7 +200,7 @@ const RootNavigator = () => {
     );
   }
   return (
-    <View style={{ flex: 1, paddingTop: StatusBar.currentHeight }}>
+    <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           <Stack.Screen name="Main" component={MainTabs} />
@@ -212,15 +217,17 @@ const RootNavigator = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <ConfirmProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" />
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </ConfirmProvider>
-      </ToastProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <StatusBar barStyle="dark-content" backgroundColor="#f0f4f8" translucent={false} />
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </ConfirmProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

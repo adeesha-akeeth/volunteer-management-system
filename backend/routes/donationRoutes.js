@@ -9,7 +9,8 @@ const {
   getDonationsByFundraiser,
   updateDonationStatus,
   updateDonation,
-  deleteDonation
+  deleteDonation,
+  getMyFundraiserPending
 } = require('../controllers/donationController');
 
 const storage = multer.diskStorage({
@@ -20,6 +21,7 @@ const upload = multer({ storage });
 
 router.post('/', protect, upload.single('receiptImage'), createDonation);
 router.get('/my', protect, getMyDonations);
+router.get('/my-fundraiser-pending', protect, getMyFundraiserPending);
 router.get('/fundraiser/:fundraiserId', protect, getDonationsByFundraiser);
 router.put('/:id/status', protect, updateDonationStatus);
 router.put('/:id', protect, upload.single('receiptImage'), updateDonation);

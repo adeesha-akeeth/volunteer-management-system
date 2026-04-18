@@ -71,7 +71,12 @@ const RegisterScreen = ({ navigation }) => {
       toast.error('Invalid Country Code', 'Please enter a valid country code (e.g. +94)');
       return;
     }
-    if (phone.length < 7) {
+    if (countryCode === '+94') {
+      if (phone.length !== 9) {
+        toast.error('Invalid Phone', 'Sri Lanka (+94) numbers must have exactly 9 digits after the country code');
+        return;
+      }
+    } else if (phone.length < 7) {
       toast.error('Invalid Phone', 'Please enter a valid phone number');
       return;
     }
@@ -164,7 +169,11 @@ const RegisterScreen = ({ navigation }) => {
             keyboardType="number-pad"
           />
         </View>
-        <Text style={styles.phoneHint}>Type your country code (e.g. +94, +1, +44)</Text>
+        <Text style={styles.phoneHint}>
+          {countryCode === '+94'
+            ? 'Enter exactly 9 digits after +94 (e.g. 771234567)'
+            : 'Type your country code (e.g. +94, +1, +44)'}
+        </Text>
 
         <Text style={styles.label}>Password *</Text>
         <View style={[styles.passwordContainer, pwError && password.length > 0 && styles.inputError]}>

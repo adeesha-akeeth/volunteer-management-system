@@ -49,7 +49,9 @@ const OpportunityListScreen = ({ navigation }) => {
       filtered = filtered.filter(o =>
         o.title?.toLowerCase().includes(lower) ||
         o.organization?.toLowerCase().includes(lower) ||
-        o.createdBy?.name?.toLowerCase().includes(lower)
+        o.createdBy?.name?.toLowerCase().includes(lower) ||
+        o.description?.toLowerCase().includes(lower) ||
+        o.location?.toLowerCase().includes(lower)
       );
     }
     return filtered;

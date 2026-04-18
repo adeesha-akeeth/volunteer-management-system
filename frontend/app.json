@@ -24,6 +24,16 @@
       "newArchEnabled": false,
       "gradleVersion": "8.6"
     },
+    "androidStatusBar": {
+      "backgroundColor": "#f0f4f8",
+      "barStyle": "dark-content",
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "visible": "sticky-immersive",
+      "backgroundColor": "#ffffff",
+      "barStyle": "dark-content"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },

@@ -78,8 +78,16 @@ const CreateOpportunityScreen = ({ navigation }) => {
       toast.error('Invalid Dates', 'End date must be after start date');
       return;
     }
+    if (responsibleName.trim() && !responsibleEmail.trim() && !contactPhone.trim()) {
+      toast.error('Contact Required', 'If a responsible person is named, please provide at least an email or phone number');
+      return;
+    }
     if (responsibleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(responsibleEmail)) {
       toast.error('Invalid Email', 'Please enter a valid contact email address');
+      return;
+    }
+    if (contactPhone.trim() && contactCountryCode === '+94' && contactPhone.trim().length !== 9) {
+      toast.error('Invalid Phone', 'Sri Lanka (+94) numbers must have exactly 9 digits after the country code');
       return;
     }
     setLoading(true);
@@ -186,13 +194,17 @@ const CreateOpportunityScreen = ({ navigation }) => {
           />
           <TextInput
             style={styles.phoneInput}
-            placeholder="Phone number"
+            placeholder={contactCountryCode === '+94' ? '9 digits e.g. 771234567' : 'Phone number'}
             placeholderTextColor="#999"
             value={contactPhone}
             onChangeText={handleContactPhoneChange}
             keyboardType="number-pad"
+            maxLength={contactCountryCode === '+94' ? 9 : 15}
           />
         </View>
+        {contactCountryCode === '+94' && contactPhone.length > 0 && contactPhone.length !== 9 && (
+          <Text style={styles.fieldError}>+94 numbers need exactly 9 digits</Text>
+        )}
 
         <Text style={styles.label}>Category</Text>
         <View style={styles.categoryContainer}>

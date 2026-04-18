@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
   ActivityIndicator, TouchableOpacity,
-  RefreshControl, Image, ScrollView
+  RefreshControl, Image, ScrollView, Modal, TextInput,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../components/Toast';
@@ -14,18 +15,29 @@ const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 const FavouriteDetailScreen = ({ route, navigation }) => {
   const toast = useToast();
   const confirm = useConfirm();
-  const { list } = route.params;
-  const [opportunities, setOpportunities] = useState(list.opportunities || []);
-  const [extraData, setExtraData] = useState({}); // keyed by opp._id: { likes, dislikes, averageRating }
+  const { list: initialList } = route.params;
+
+  const [list, setList] = useState(initialList);
+  const [opportunities, setOpportunities] = useState(initialList.opportunities || []);
+  const [extraData, setExtraData] = useState({});
   const [refreshing, setRefreshing] = useState(false);
+
+  // Edit modal state
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName, setEditName] = useState(initialList.name);
+  const [editDesc, setEditDesc] = useState(initialList.description || '');
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchList = async () => {
     try {
       const response = await api.get('/api/favourites');
       const updated = response.data.find(l => l._id === list._id);
-      if (updated) setOpportunities(updated.opportunities || []);
+      if (updated) {
+        setList(updated);
+        setOpportunities(updated.opportunities || []);
+      }
     } catch {
-      console.log('Failed to refresh list');
+      // silent
     } finally {
       setRefreshing(false);
     }
@@ -34,7 +46,6 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
   const fetchExtras = async (opps) => {
     if (!opps || opps.length === 0) return;
     try {
-      // Fetch full opportunity data to get likes/dislikes/ratings
       const results = await Promise.allSettled(
         opps.map(o => api.get(`/api/opportunities/${o._id}`))
       );
@@ -80,7 +91,38 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
     });
   };
 
-  // Collect all categories in this list
+  const handleEdit = async () => {
+    if (!editName.trim()) { toast.warning('Required', 'Please enter a list name'); return; }
+    setEditSubmitting(true);
+    try {
+      await api.put(`/api/favourites/${list._id}`, { name: editName.trim(), description: editDesc.trim() });
+      setList(prev => ({ ...prev, name: editName.trim(), description: editDesc.trim() }));
+      setEditVisible(false);
+      toast.success('Updated', 'List updated successfully');
+    } catch {
+      toast.error('Error', 'Failed to update list');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDelete = () => {
+    confirm.show({
+      title: 'Delete List',
+      message: `Delete "${list.name}"? All saved opportunities will be removed from this list.`,
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/favourites/${list._id}`);
+          navigation.goBack();
+        } catch {
+          toast.error('Error', 'Failed to delete list');
+        }
+      }
+    });
+  };
+
   const allCategories = [...new Set(opportunities.map(o => o.category).filter(Boolean))];
 
   const renderItem = ({ item }) => {
@@ -127,7 +169,6 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
             </Text>
           </View>
 
-          {/* Actions row: votes + remove */}
           <View style={styles.actionsRow}>
             <View style={styles.voteBadge}><Text style={styles.voteBadgeText}>👍 {extra.likes || 0}</Text></View>
             <View style={[styles.voteBadge, { backgroundColor: '#ffe8e8' }]}><Text style={[styles.voteBadgeText, { color: '#e74c3c' }]}>👎 {extra.dislikes || 0}</Text></View>
@@ -142,10 +183,23 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>{list.name}</Text>
-      {list.description ? <Text style={styles.description}>{list.description}</Text> : null}
+      {/* Header with list info and actions */}
+      <View style={styles.headerCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.heading}>{list.name}</Text>
+          {list.description ? <Text style={styles.description}>{list.description}</Text> : null}
+          <Text style={styles.countLabel}>{opportunities.length} opportunit{opportunities.length !== 1 ? 'ies' : 'y'}</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => { setEditName(list.name); setEditDesc(list.description || ''); setEditVisible(true); }}>
+            <Ionicons name="pencil-outline" size={18} color="#2e86de" />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.headerActionBtn, styles.headerDeleteBtn]} onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={18} color="#e74c3c" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {/* Categories present in list */}
       {allCategories.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{ gap: 8, paddingRight: 10 }}>
           {allCategories.map(cat => (
@@ -156,13 +210,12 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
         </ScrollView>
       )}
 
-      <Text style={styles.countLabel}>{opportunities.length} opportunit{opportunities.length !== 1 ? 'ies' : 'y'}</Text>
-
       <FlatList
         data={opportunities}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={{ padding: 15, paddingTop: 8 }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No opportunities in this list yet</Text>
@@ -170,22 +223,80 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
           </View>
         }
       />
+
+      {/* Edit List Modal */}
+      <Modal visible={editVisible} transparent animationType="fade" onRequestClose={() => setEditVisible(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setEditVisible(false)} />
+          <View style={styles.modalCenteredWrapper} pointerEvents="box-none">
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit List</Text>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.label}>List Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Environmental Causes"
+                  placeholderTextColor="#aaa"
+                  value={editName}
+                  onChangeText={setEditName}
+                  autoFocus
+                />
+                <Text style={styles.label}>Description (optional)</Text>
+                <TextInput
+                  style={styles.textArea}
+                  placeholder="What kind of opportunities?"
+                  placeholderTextColor="#aaa"
+                  value={editDesc}
+                  onChangeText={setEditDesc}
+                  multiline
+                  numberOfLines={3}
+                />
+                <TouchableOpacity style={styles.submitButton} onPress={handleEdit} disabled={editSubmitting}>
+                  {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Save Changes</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setEditVisible(false)}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
-  heading: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 4 },
-  description: { fontSize: 14, color: '#666', marginBottom: 10 },
-  categoryScroll: { marginBottom: 10 },
+  container: { flex: 1, backgroundColor: '#f0f4f8' },
+
+  headerCard: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    elevation: 2
+  },
+  heading: { fontSize: 22, fontWeight: 'bold', color: '#333', marginBottom: 2 },
+  description: { fontSize: 14, color: '#666', marginBottom: 4 },
+  countLabel: { fontSize: 12, color: '#e74c3c', fontWeight: 'bold' },
+  headerActions: { flexDirection: 'row', gap: 8, marginLeft: 10, marginTop: 4 },
+  headerActionBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#e8f4fd',
+    justifyContent: 'center', alignItems: 'center'
+  },
+  headerDeleteBtn: { backgroundColor: '#ffe0e0' },
+
+  categoryScroll: { paddingHorizontal: 15, paddingVertical: 8, maxHeight: 50 },
   categoryChip: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: '#2e86de' },
   categoryChipText: { color: '#2e86de', fontWeight: 'bold', fontSize: 12, textTransform: 'capitalize' },
-  countLabel: { fontSize: 13, color: '#888', marginBottom: 12 },
+
   card: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 12, elevation: 3, overflow: 'hidden' },
   cardImage: { width: '100%', height: 120 },
   cardImagePlaceholder: { width: '100%', height: 80, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
-  placeholderText: { fontSize: 30 },
   cardContent: { padding: 12 },
   badgeRow: { flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' },
   categoryBadge: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
@@ -200,9 +311,24 @@ const styles = StyleSheet.create({
   voteBadgeText: { fontSize: 12, fontWeight: 'bold', color: '#2e86de' },
   removeButton: { marginLeft: 'auto', backgroundColor: '#ffe0e0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5 },
   removeButtonText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 12 },
+
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  emptySubText: { fontSize: 14, color: '#999', textAlign: 'center' }
+  emptySubText: { fontSize: 14, color: '#999', textAlign: 'center' },
+
+  // Modal
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalCenteredWrapper: { width: '88%', maxHeight: '80%', zIndex: 10 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 24, elevation: 10 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
+  label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
+  input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
+  textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 80, textAlignVertical: 'top', color: '#333' },
+  submitButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10 },
+  submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  cancelButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, alignItems: 'center' },
+  cancelButtonText: { color: '#999', fontWeight: 'bold', fontSize: 15 }
 });
 
 export default FavouriteDetailScreen;

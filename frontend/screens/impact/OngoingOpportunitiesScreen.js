@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, ActivityIndicator,
-  RefreshControl, Image, Modal, TextInput
+  RefreshControl, Image, Modal, TextInput,
+  KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../components/Toast';
@@ -209,13 +210,8 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
           )}
 
           <TouchableOpacity style={styles.logBtn} onPress={() => openContribModal(opp)}>
-            <View style={styles.logBtnIconCircle}>
-              <Text style={styles.logBtnIcon}>+</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.logBtnTitle}>Log Contribution Hours</Text>
-              <Text style={styles.logBtnSub}>Submit hours for verification & earn 10pts/hr</Text>
-            </View>
+            <Ionicons name="time-outline" size={18} color="#9b59b6" style={{ marginRight: 8 }} />
+            <Text style={styles.logBtnTitle}>Log Hours</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -244,97 +240,105 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
       />
 
       {/* Add Contribution Modal */}
-      <Modal visible={!!contribModal} transparent animationType="slide" onRequestClose={() => setContribModal(null)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setContribModal(null)}>
-          <View style={styles.modal} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Log Contribution</Text>
-            <Text style={styles.modalSubtitle} numberOfLines={1}>{contribModal?.title}</Text>
+      <Modal visible={!!contribModal} transparent animationType="fade" onRequestClose={() => setContribModal(null)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setContribModal(null)} />
+          <View style={styles.modalCenteredWrapper} pointerEvents="box-none">
+            <View style={styles.modal}>
+              <Text style={styles.modalTitle}>Log Contribution</Text>
+              <Text style={styles.modalSubtitle} numberOfLines={1}>{contribModal?.title}</Text>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.label}>Hours Contributed *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 2.5"
+                  placeholderTextColor="#aaa"
+                  value={hours}
+                  onChangeText={setHours}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                />
 
-            <Text style={styles.label}>Hours Contributed *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 2.5"
-              placeholderTextColor="#aaa"
-              value={hours}
-              onChangeText={setHours}
-              keyboardType="decimal-pad"
-            />
+                <Text style={styles.label}>Description (optional)</Text>
+                <TextInput
+                  style={styles.textArea}
+                  placeholder="What did you do? e.g. Helped organise the event..."
+                  placeholderTextColor="#aaa"
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={3}
+                />
 
-            <Text style={styles.label}>Description (optional)</Text>
-            <TextInput
-              style={styles.textArea}
-              placeholder="What did you do? e.g. Helped organise the event..."
-              placeholderTextColor="#aaa"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-            />
+                <View style={styles.pointsPreview}>
+                  <Text style={styles.pointsPreviewText}>
+                    🏆 This will earn you <Text style={styles.pointsPreviewNum}>{Math.floor(Number(hours || 0) * 10)} pts</Text> once verified
+                  </Text>
+                </View>
 
-            <View style={styles.pointsPreview}>
-              <Text style={styles.pointsPreviewText}>
-                🏆 This will earn you <Text style={styles.pointsPreviewNum}>{Math.floor(Number(hours || 0) * 10)} pts</Text> once verified
-              </Text>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitContribution} disabled={submitting}>
-                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit for Verification</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setContribModal(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitContribution} disabled={submitting}>
+                    {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit for Verification</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setContribModal(null)}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Contribution Modal */}
-      <Modal visible={!!editModal} transparent animationType="slide" onRequestClose={() => setEditModal(null)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEditModal(null)}>
-          <View style={styles.modal} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Edit Contribution</Text>
-            <Text style={styles.modalSubtitle}>Pending — awaiting verification</Text>
+      <Modal visible={!!editModal} transparent animationType="fade" onRequestClose={() => setEditModal(null)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setEditModal(null)} />
+          <View style={styles.modalCenteredWrapper} pointerEvents="box-none">
+            <View style={styles.modal}>
+              <Text style={styles.modalTitle}>Edit Contribution</Text>
+              <Text style={styles.modalSubtitle}>Pending — awaiting verification</Text>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.label}>Hours *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 2.5"
+                  placeholderTextColor="#aaa"
+                  value={editHours}
+                  onChangeText={setEditHours}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                />
 
-            <Text style={styles.label}>Hours *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 2.5"
-              placeholderTextColor="#aaa"
-              value={editHours}
-              onChangeText={setEditHours}
-              keyboardType="decimal-pad"
-            />
+                <Text style={styles.label}>Description (optional)</Text>
+                <TextInput
+                  style={styles.textArea}
+                  placeholder="What did you do?"
+                  placeholderTextColor="#aaa"
+                  value={editDescription}
+                  onChangeText={setEditDescription}
+                  multiline
+                  numberOfLines={3}
+                />
 
-            <Text style={styles.label}>Description (optional)</Text>
-            <TextInput
-              style={styles.textArea}
-              placeholder="What did you do?"
-              placeholderTextColor="#aaa"
-              value={editDescription}
-              onChangeText={setEditDescription}
-              multiline
-              numberOfLines={3}
-            />
+                <View style={styles.pointsPreview}>
+                  <Text style={styles.pointsPreviewText}>
+                    🏆 Will earn <Text style={styles.pointsPreviewNum}>{Math.floor(Number(editHours || 0) * 10)} pts</Text> once verified
+                  </Text>
+                </View>
 
-            <View style={styles.pointsPreview}>
-              <Text style={styles.pointsPreviewText}>
-                🏆 Will earn <Text style={styles.pointsPreviewNum}>{Math.floor(Number(editHours || 0) * 10)} pts</Text> once verified
-              </Text>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.submitBtn} onPress={handleEditContribution} disabled={editSubmitting}>
-                {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Save Changes</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModal(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.submitBtn} onPress={handleEditContribution} disabled={editSubmitting}>
+                    {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Save Changes</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModal(null)}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -377,11 +381,12 @@ const styles = StyleSheet.create({
   deleteContribBtn: { backgroundColor: '#fdecea', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   deleteContribBtnText: { color: '#e74c3c', fontWeight: 'bold', fontSize: 12 },
 
-  logBtn: { backgroundColor: '#27ae60', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logBtnIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center' },
-  logBtnIcon: { color: '#fff', fontSize: 26, fontWeight: 'bold', lineHeight: 30 },
-  logBtnTitle: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  logBtnSub: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
+  logBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#9b59b6', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 18, alignSelf: 'flex-start'
+  },
+  logBtnTitle: { color: '#9b59b6', fontWeight: 'bold', fontSize: 14 },
 
   emptyContainer: { alignItems: 'center', marginTop: 60, paddingHorizontal: 30 },
   emptyIcon: { marginBottom: 12 },
@@ -389,9 +394,10 @@ const styles = StyleSheet.create({
   emptySubText: { fontSize: 14, color: '#999', textAlign: 'center' },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalCenteredWrapper: { width: '90%', maxHeight: '80%', zIndex: 10 },
+  modal: { backgroundColor: '#fff', borderRadius: 20, padding: 22, elevation: 10 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 4 },
   modalSubtitle: { fontSize: 14, color: '#888', marginBottom: 18 },
   label: { fontSize: 13, fontWeight: 'bold', color: '#555', marginBottom: 6 },

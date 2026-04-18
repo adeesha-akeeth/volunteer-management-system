@@ -9,7 +9,8 @@ const {
   getApplicationsForOpportunity,
   updateApplicationStatus,
   revokeAcceptedVolunteer,
-  deleteApplication
+  deleteApplication,
+  getAllApplicationsForCreator
 } = require('../controllers/applicationController');
 
 const storage = multer.diskStorage({
@@ -29,6 +30,7 @@ const upload = multer({ storage, fileFilter });
 
 router.post('/', protect, upload.single('photo'), applyToOpportunity);
 router.get('/my', protect, getMyApplications);
+router.get('/creator/all', protect, getAllApplicationsForCreator);
 router.get('/opportunity/:opportunityId', protect, getApplicationsForOpportunity);
 router.put('/:id/status', protect, updateApplicationStatus);
 router.put('/:id/revoke', protect, revokeAcceptedVolunteer);

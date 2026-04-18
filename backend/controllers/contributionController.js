@@ -102,7 +102,9 @@ const getMyApprovedOpportunities = async (req, res) => {
       .populate('opportunity', 'title organization location startDate endDate bannerImage category')
       .sort({ appliedAt: -1 });
 
-    const result = await Promise.all(applications.map(async (app) => {
+    const validApps = applications.filter(app => app.opportunity != null);
+
+    const result = await Promise.all(validApps.map(async (app) => {
       const contributions = await Contribution.find({
         opportunity: app.opportunity._id,
         volunteer: req.user.id

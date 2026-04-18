@@ -8,28 +8,33 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useToast } from '../../components/Toast';
-import { useConfirm } from '../../components/ConfirmModal';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const ListFormModal = ({ visible, title, name, description, onChangeName, onChangeDescription, onSubmit, onCancel, submitting }) => (
-  <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-    <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onCancel} />
-      <View style={styles.modalContent}>
-        <View style={styles.modalHandle} />
-        <Text style={styles.modalTitle}>{title}</Text>
-        <Text style={styles.label}>List Name *</Text>
-        <TextInput style={styles.input} placeholder="e.g. Environmental Causes" placeholderTextColor="#aaa" value={name} onChangeText={onChangeName} autoFocus />
-        <Text style={styles.label}>Description (optional)</Text>
-        <TextInput style={styles.textArea} placeholder="What kind of opportunities?" placeholderTextColor="#aaa" value={description} onChangeText={onChangeDescription} multiline numberOfLines={3} />
-        <TouchableOpacity style={styles.submitButton} onPress={onSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>{title}</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <KeyboardAvoidingView
+      style={styles.modalOverlay}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onCancel} />
+      <View style={styles.modalCenteredWrapper} pointerEvents="box-none">
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.label}>List Name *</Text>
+            <TextInput style={styles.input} placeholder="e.g. Environmental Causes" placeholderTextColor="#aaa" value={name} onChangeText={onChangeName} autoFocus />
+            <Text style={styles.label}>Description (optional)</Text>
+            <TextInput style={styles.textArea} placeholder="What kind of opportunities?" placeholderTextColor="#aaa" value={description} onChangeText={onChangeDescription} multiline numberOfLines={3} />
+            <TouchableOpacity style={styles.submitButton} onPress={onSubmit} disabled={submitting}>
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>{title}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       </View>
     </KeyboardAvoidingView>
   </Modal>
@@ -37,7 +42,6 @@ const ListFormModal = ({ visible, title, name, description, onChangeName, onChan
 
 const FavouritesScreen = ({ navigation }) => {
   const toast = useToast();
-  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('feed');
 
   // Feed state
@@ -55,12 +59,6 @@ const FavouritesScreen = ({ navigation }) => {
   const [createName, setCreateName] = useState('');
   const [createDesc, setCreateDesc] = useState('');
   const [creating, setCreating] = useState(false);
-
-  const [showEdit, setShowEdit] = useState(false);
-  const [editingList, setEditingList] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editing, setEditing] = useState(false);
 
   const fetchFeed = async () => {
     try {
@@ -113,32 +111,6 @@ const FavouritesScreen = ({ navigation }) => {
       fetchLists();
     } catch { toast.error('Error', 'Failed to create list'); }
     finally { setCreating(false); }
-  };
-
-  const openEdit = (list) => { setEditingList(list); setEditName(list.name); setEditDesc(list.description || ''); setShowEdit(true); };
-
-  const handleEdit = async () => {
-    if (!editName.trim()) { toast.warning('Required', 'Please enter a list name'); return; }
-    setEditing(true);
-    try {
-      await api.put(`/api/favourites/${editingList._id}`, { name: editName.trim(), description: editDesc.trim() });
-      setShowEdit(false); setEditingList(null);
-      fetchLists();
-    } catch { toast.error('Error', 'Failed to update list'); }
-    finally { setEditing(false); }
-  };
-
-  const handleDelete = (list) => {
-    confirm.show({
-      title: 'Delete List',
-      message: `Delete "${list.name}"?`,
-      confirmText: 'Delete',
-      destructive: true,
-      onConfirm: async () => {
-        try { await api.delete(`/api/favourites/${list._id}`); fetchLists(); }
-        catch { toast.error('Error', 'Failed to delete list'); }
-      }
-    });
   };
 
   const renderFeedItem = ({ item }) => {
@@ -318,10 +290,7 @@ const FavouritesScreen = ({ navigation }) => {
               {item.description ? <Text style={styles.cardDescription} numberOfLines={1}>{item.description}</Text> : null}
               <Text style={styles.cardCount}>{item.opportunities?.length || 0} saved</Text>
             </View>
-            <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}><Text style={styles.actionBtnText}>✏️</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.deleteActionBtn]} onPress={() => handleDelete(item)}><Text style={styles.actionBtnText}>🗑️</Text></TouchableOpacity>
-            </View>
+            <Ionicons name="chevron-forward" size={18} color="#ccc" />
           </TouchableOpacity>
         )}
         ListEmptyComponent={
@@ -366,13 +335,6 @@ const FavouritesScreen = ({ navigation }) => {
         onChangeName={setCreateName} onChangeDescription={setCreateDesc}
         onSubmit={handleCreate} onCancel={() => { setShowCreate(false); setCreateName(''); setCreateDesc(''); }}
         submitting={creating}
-      />
-      <ListFormModal
-        visible={showEdit} title="Edit List"
-        name={editName} description={editDesc}
-        onChangeName={setEditName} onChangeDescription={setEditDesc}
-        onSubmit={handleEdit} onCancel={() => { setShowEdit(false); setEditingList(null); }}
-        submitting={editing}
       />
     </View>
   );
@@ -452,10 +414,6 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 3 },
   cardDescription: { fontSize: 13, color: '#666', marginBottom: 3 },
   cardCount: { fontSize: 12, color: '#e74c3c', fontWeight: 'bold' },
-  cardActions: { flexDirection: 'row', gap: 6, marginLeft: 8 },
-  actionBtn: { width: 36, height: 36, backgroundColor: '#f8f9fa', borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  deleteActionBtn: { backgroundColor: '#ffe0e0' },
-  actionBtnText: { fontSize: 16 },
   emptyContainer: { alignItems: 'center', marginTop: 30 },
   emptyIcon: { fontSize: 50, marginBottom: 12 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 5 },
@@ -464,9 +422,10 @@ const styles = StyleSheet.create({
   emptyCreateBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
   // Modal
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalCenteredWrapper: { width: '88%', maxHeight: '80%', zIndex: 10 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
   input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },

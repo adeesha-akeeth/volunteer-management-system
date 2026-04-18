@@ -90,7 +90,7 @@ const NotificationsScreen = ({ navigation }) => {
         break;
 
       case 'contribution_status':
-        if (relId) navigation.navigate('OpportunityDetail', { opportunityId: relId });
+        navigation.getParent()?.navigate('Impact', { screen: 'ImpactMain' });
         break;
 
       case 'donation_status':

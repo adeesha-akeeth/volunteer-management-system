@@ -75,6 +75,9 @@ app.use('/api/contributions', contributionRoutes);
 const pointsRoutes = require('./routes/pointsRoutes');
 app.use('/api/points', pointsRoutes);
 
+const goalRoutes = require('./routes/goalRoutes');
+app.use('/api/goals', goalRoutes);
+
 const notificationRoutes = require('./routes/notificationRoutes');
 app.use('/api/notifications', notificationRoutes);
 

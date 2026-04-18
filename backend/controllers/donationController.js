@@ -197,11 +197,30 @@ const deleteDonation = async (req, res) => {
   }
 };
 
+// Get all pending donations across the creator's fundraisers
+const getMyFundraiserPending = async (req, res) => {
+  try {
+    const myFundraisers = await Fundraiser.find({ createdBy: req.user.id }).select('_id name');
+    if (!myFundraisers.length) return res.json([]);
+
+    const ids = myFundraisers.map(f => f._id);
+    const donations = await Donation.find({ fundraiser: { $in: ids }, status: 'pending' })
+      .populate('fundraiser', 'name')
+      .populate('donor', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.json(donations);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createDonation,
   getMyDonations,
   getDonationsByFundraiser,
   updateDonationStatus,
   updateDonation,
-  deleteDonation
+  deleteDonation,
+  getMyFundraiserPending
 };

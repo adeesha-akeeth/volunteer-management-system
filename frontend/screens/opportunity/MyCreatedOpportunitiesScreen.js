@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, StyleSheet,
   ActivityIndicator, TouchableOpacity, RefreshControl, Image
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../components/Toast';
 import api from '../../api';
 
@@ -80,7 +81,16 @@ const MyCreatedOpportunitiesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>My Created Opportunities</Text>
+      <View style={styles.topRow}>
+        <Text style={styles.heading}>My Created Opportunities</Text>
+        <TouchableOpacity
+          style={styles.allAppsBtn}
+          onPress={() => navigation.navigate('AllCreatorApplications')}
+        >
+          <Ionicons name="people-outline" size={16} color="#2e86de" style={{ marginRight: 5 }} />
+          <Text style={styles.allAppsBtnText}>All Applications</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={opportunities}
         keyExtractor={(item) => item._id}
@@ -99,7 +109,10 @@ const MyCreatedOpportunitiesScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8', padding: 15 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  heading: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  heading: { fontSize: 22, fontWeight: 'bold', color: '#333' },
+  allAppsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#2e86de' },
+  allAppsBtnText: { color: '#2e86de', fontWeight: 'bold', fontSize: 12 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 12, elevation: 3 },
   cardImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 10 },
   cardImagePlaceholder: { width: '100%', height: 90, borderRadius: 8, marginBottom: 10, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },

@@ -19,7 +19,7 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
     setReplyingTo, replyingTo,
     setExpandedReplies, expandedReplies,
     handleAddReply, replyText, setReplyText, replyPhoto, pickReplyPhoto, replySubmitting,
-    openEditComment, scrollToEnd
+    openEditComment, scrollToEnd, navigateToProfile
   } = handlers;
 
   const isOwn = item.author?._id === userId || item.author?.id === userId;
@@ -29,11 +29,15 @@ const CommentItem = ({ item, parentId, userId, handlers }) => {
   return (
     <View style={[styles.commentItem, parentId && styles.commentItemReply]}>
       <View style={styles.commentHeader}>
-        <View style={styles.commentAvatar}>
-          <Text style={styles.commentAvatarText}>{item.author?.name?.charAt(0).toUpperCase() || '?'}</Text>
-        </View>
+        <TouchableOpacity onPress={() => navigateToProfile(item.author?._id)} activeOpacity={0.7}>
+          <View style={styles.commentAvatar}>
+            <Text style={styles.commentAvatarText}>{item.author?.name?.charAt(0).toUpperCase() || '?'}</Text>
+          </View>
+        </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.commentAuthor}>{item.author?.name || 'Unknown'}</Text>
+          <TouchableOpacity onPress={() => navigateToProfile(item.author?._id)} activeOpacity={0.7}>
+            <Text style={styles.commentAuthor}>{item.author?.name || 'Unknown'}</Text>
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={styles.commentDate}>{new Date(item.createdAt).toDateString()}</Text>
             {item.isUpdated && <Text style={styles.updatedLabel}>edited</Text>}
@@ -453,7 +457,10 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
     setExpandedReplies, expandedReplies,
     handleAddReply, replyText, setReplyText, replyPhoto, pickReplyPhoto, replySubmitting,
     openEditComment,
-    scrollToEnd: () => scrollViewRef.current?.scrollToEnd({ animated: true })
+    scrollToEnd: () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+    navigateToProfile: (authorId) => {
+      if (authorId) navigation.navigate('PublisherProfile', { publisherId: authorId });
+    }
   };
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#2e86de" /></View>;
@@ -914,7 +921,7 @@ const styles = StyleSheet.create({
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   commentAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#2e86de', justifyContent: 'center', alignItems: 'center' },
   commentAvatarText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-  commentAuthor: { fontSize: 13, fontWeight: 'bold', color: '#333' },
+  commentAuthor: { fontSize: 13, fontWeight: 'bold', color: '#2e86de' },
   commentDate: { fontSize: 11, color: '#aaa' },
   updatedLabel: { fontSize: 10, color: '#f39c12', fontStyle: 'italic' },
   commentActions: { flexDirection: 'row', gap: 6 },

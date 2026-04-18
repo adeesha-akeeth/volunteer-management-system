@@ -60,7 +60,7 @@ const applyToOpportunity = async (req, res) => {
       await Notification.create({
         recipient: opportunity.createdBy,
         type: 'new_application',
-        message: `Someone applied to "${opportunity.title}"`,
+        message: `Application received for "${opportunity.title}"`,
         relatedId: opportunity._id
       });
     } catch {}
@@ -223,11 +223,27 @@ const revokeAcceptedVolunteer = async (req, res) => {
   }
 };
 
+// Get ALL applications across all opportunities created by the logged-in user
+const getAllApplicationsForCreator = async (req, res) => {
+  try {
+    const opportunities = await Opportunity.find({ createdBy: req.user.id }).select('_id');
+    const oppIds = opportunities.map(o => o._id);
+    const applications = await Application.find({ opportunity: { $in: oppIds } })
+      .populate('volunteer', 'name email phone profileImage')
+      .populate('opportunity', 'title organization')
+      .sort({ appliedAt: -1 });
+    res.json(applications);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   applyToOpportunity,
   getMyApplications,
   getApplicationsForOpportunity,
   updateApplicationStatus,
   revokeAcceptedVolunteer,
-  deleteApplication
+  deleteApplication,
+  getAllApplicationsForCreator
 };

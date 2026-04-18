@@ -54,6 +54,13 @@ const ApplyScreen = ({ route, navigation }) => {
   const handleApply = async () => {
     if (!applicantName.trim()) { toast.error('Missing Field', 'Please enter your name'); return; }
     if (!phone.trim()) { toast.error('Missing Field', 'Please enter your phone number'); return; }
+    if (phone.trim().startsWith('+94')) {
+      const digits = phone.trim().slice(3).replace(/\s/g, '');
+      if (digits.length !== 9 || !/^\d+$/.test(digits)) {
+        toast.error('Invalid Phone', 'Sri Lanka (+94) numbers must have exactly 9 digits after the country code');
+        return;
+      }
+    }
     if (!email.trim()) { toast.error('Missing Field', 'Please enter your email'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error('Invalid Email', 'Please enter a valid email address'); return; }
     if (!coverLetter.trim()) { toast.error('Missing Field', 'Please tell us why you want to volunteer'); return; }
@@ -142,6 +149,7 @@ const ApplyScreen = ({ route, navigation }) => {
           onChangeText={setPhone}
           keyboardType="phone-pad"
         />
+        <Text style={styles.fieldHint}>For Sri Lanka, enter +94 followed by exactly 9 digits</Text>
 
         <Text style={styles.label}>Email Address *</Text>
         <TextInput
@@ -284,6 +292,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 15, borderWidth: 1, borderColor: '#ddd', color: '#333' },
   inputError: { borderColor: '#e74c3c' },
   fieldError: { color: '#e74c3c', fontSize: 12, marginTop: -10, marginBottom: 12 },
+  fieldHint: { fontSize: 11, color: '#aaa', marginTop: -10, marginBottom: 12 },
   textArea: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 15, borderWidth: 1, borderColor: '#ddd', minHeight: 100, textAlignVertical: 'top', color: '#333' },
   photoSection: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#ddd' },
   photoNote: { fontSize: 12, color: '#e67e22', fontWeight: '600', marginBottom: 12 },

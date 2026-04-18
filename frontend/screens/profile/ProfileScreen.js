@@ -53,20 +53,6 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Publisher Tools */}
-      <TouchableOpacity style={styles.verifyCard} onPress={() => navigation.navigate('AllContributions')}>
-        <View style={styles.verifyCardLeft}>
-          <View style={styles.verifyIconCircle}>
-            <Text style={styles.verifyIcon}>⏱</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.verifyCardTitle}>Verify Contributions</Text>
-            <Text style={styles.verifyCardSub}>Review & approve volunteer hour submissions</Text>
-          </View>
-        </View>
-        <Text style={styles.verifyCardArrow}>→</Text>
-      </TouchableOpacity>
-
       {/* My Activity */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>My Activity</Text>
@@ -84,6 +70,10 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('MyLikesComments')}>
           <Text style={styles.navButtonText}>👍 My Likes & Comments</Text>
+          <Text style={styles.navButtonArrow}>→</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('AllContributions')}>
+          <Text style={styles.navButtonText}>⏱ Verify Contributions</Text>
           <Text style={styles.navButtonArrow}>→</Text>
         </TouchableOpacity>
       </View>
@@ -115,13 +105,6 @@ const styles = StyleSheet.create({
   navButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 10, backgroundColor: '#f8f9fa', marginBottom: 8 },
   navButtonText: { fontSize: 15, color: '#333' },
   navButtonArrow: { fontSize: 18, color: '#2e86de', fontWeight: 'bold' },
-  verifyCard: { backgroundColor: '#9b59b6', borderRadius: 14, padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
-  verifyCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  verifyIconCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center' },
-  verifyIcon: { fontSize: 22 },
-  verifyCardTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  verifyCardSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
-  verifyCardArrow: { color: 'rgba(255,255,255,0.7)', fontSize: 20, fontWeight: 'bold' },
   logoutButton: { backgroundColor: '#e74c3c', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 30 },
   logoutButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });
