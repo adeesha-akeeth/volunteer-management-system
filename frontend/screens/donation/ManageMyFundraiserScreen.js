@@ -131,24 +131,6 @@ const ManageMyFundraiserScreen = ({ route, navigation }) => {
     });
   };
 
-  const handleStop = () => {
-    confirm.show({
-      title: 'Stop Fundraiser',
-      message: 'Stop accepting new donations for this fundraiser?',
-      confirmText: 'Stop',
-      destructive: true,
-      onConfirm: async () => {
-        try {
-          await api.put(`/api/fundraisers/${fundraiserId}/stop`);
-          toast.success('Stopped', 'Fundraiser has been stopped');
-          fetchAll();
-        } catch (error) {
-          toast.error('Error', error.response?.data?.message || 'Failed to stop');
-        }
-      }
-    });
-  };
-
   const handleDelete = () => {
     confirm.show({
       title: 'Delete Fundraiser',
@@ -317,10 +299,6 @@ const ManageMyFundraiserScreen = ({ route, navigation }) => {
           <TouchableOpacity style={styles.completeFooterBtn} onPress={handleComplete}>
             <Ionicons name="checkmark-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
             <Text style={styles.footerBtnTextWhite}>Complete</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.stopFooterBtn} onPress={handleStop}>
-            <Ionicons name="stop-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
-            <Text style={styles.footerBtnTextWhite}>Stop</Text>
           </TouchableOpacity>
         </>
       )}
@@ -647,15 +625,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#27ae60',
-    borderRadius: 10,
-    padding: 12
-  },
-  stopFooterBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f39c12',
     borderRadius: 10,
     padding: 12
   },
