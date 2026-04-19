@@ -28,7 +28,7 @@ const FeedbackScreen = () => {
 
   const fetchData = async () => {
     try {
-      const res = await api.get('/api/feedback/my');
+      const res = await api.get('/api/user-feedback/my');
       setFeedbacks(res.data || []);
     } catch {
       toast.error('Error', 'Failed to load feedbacks');
@@ -54,11 +54,11 @@ const FeedbackScreen = () => {
     setSubmitting(true);
     try {
       if (editingId) {
-        const res = await api.put(`/api/feedback/${editingId}`, { title: fTitle.trim(), message: fMessage.trim() });
+        const res = await api.put(`/api/user-feedback/${editingId}`, { title: fTitle.trim(), message: fMessage.trim() });
         setFeedbacks(prev => prev.map(f => f._id === editingId ? res.data : f));
         toast.success('Updated', 'Feedback updated successfully');
       } else {
-        const res = await api.post('/api/feedback', { title: fTitle.trim(), message: fMessage.trim() });
+        const res = await api.post('/api/user-feedback', { title: fTitle.trim(), message: fMessage.trim() });
         setFeedbacks(prev => [res.data, ...prev]);
         toast.success('Sent', 'Feedback submitted! Admin will review it.');
       }
@@ -70,16 +70,22 @@ const FeedbackScreen = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    const ok = await confirm({ title: 'Delete Feedback', message: 'Delete this feedback?', confirmText: 'Delete', destructive: true });
-    if (!ok) return;
-    try {
-      await api.delete(`/api/feedback/${id}`);
-      setFeedbacks(prev => prev.filter(f => f._id !== id));
-      toast.success('Deleted', 'Feedback removed');
-    } catch (e) {
-      toast.error('Error', e.response?.data?.message || 'Failed to delete');
-    }
+  const handleDelete = (id) => {
+    confirm.show({
+      title: 'Delete Feedback',
+      message: 'Delete this feedback?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/user-feedback/${id}`);
+          setFeedbacks(prev => prev.filter(f => f._id !== id));
+          toast.success('Deleted', 'Feedback removed');
+        } catch (e) {
+          toast.error('Error', e.response?.data?.message || 'Failed to delete');
+        }
+      }
+    });
   };
 
   const s = makeStyles(t);

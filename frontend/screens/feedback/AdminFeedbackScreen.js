@@ -24,7 +24,7 @@ const AdminFeedbackScreen = () => {
 
   const fetchData = async () => {
     try {
-      const res = await api.get('/api/feedback/admin/all');
+      const res = await api.get('/api/user-feedback/admin/all');
       setFeedbacks(res.data || []);
     } catch {
       toast.error('Error', 'Failed to load feedbacks');
@@ -41,7 +41,7 @@ const AdminFeedbackScreen = () => {
     if (!replyText.trim()) { toast.error('Required', 'Please write a reply'); return; }
     setReplying(true);
     try {
-      const res = await api.post(`/api/feedback/${selected._id}/reply`, { reply: replyText.trim() });
+      const res = await api.post(`/api/user-feedback/${selected._id}/reply`, { reply: replyText.trim() });
       setFeedbacks(prev => prev.map(f => f._id === selected._id ? res.data : f));
       setSelected(res.data);
       setReplyText('');

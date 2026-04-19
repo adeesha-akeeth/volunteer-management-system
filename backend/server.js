@@ -79,7 +79,7 @@ const goalRoutes = require('./routes/goalRoutes');
 app.use('/api/goals', goalRoutes);
 
 const userFeedbackRoutes = require('./routes/userFeedbackRoutes');
-app.use('/api/feedback', userFeedbackRoutes);
+app.use('/api/user-feedback', userFeedbackRoutes);
 
 const adminRoutes = require('./routes/adminRoutes');
 app.use('/api/admin', adminRoutes);
