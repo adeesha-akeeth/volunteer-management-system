@@ -38,9 +38,6 @@ app.use('/api/opportunities', opportunityRoutes);
 const applicationRoutes = require('./routes/applicationRoutes');
 app.use('/api/applications', applicationRoutes);
 
-// Hours Routes
-const hoursRoutes = require('./routes/hoursRoutes');
-app.use('/api/hours', hoursRoutes);
 
 // Feedback Routes
 const feedbackRoutes = require('./routes/feedbackRoutes');
@@ -50,9 +47,6 @@ app.use('/api/feedback', feedbackRoutes);
 const donationRoutes = require('./routes/donationRoutes');
 app.use('/api/donations', donationRoutes);
 
-// Certificate Routes
-const certificateRoutes = require('./routes/certificateRoutes');
-app.use('/api/certificates', certificateRoutes);
 
 const favouriteRoutes = require('./routes/favouriteRoutes');
 app.use('/api/favourites', favouriteRoutes);
