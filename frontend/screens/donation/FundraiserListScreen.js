@@ -118,6 +118,13 @@ const FundraiserListScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Support a Cause</Text>
         <Text style={styles.headerSubtitle}>Find fundraisers that need your help</Text>
+        <TouchableOpacity
+          style={styles.myFundraisersBtn}
+          onPress={() => navigation.navigate('MyFundraisers')}
+        >
+          <Ionicons name="list-outline" size={15} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={styles.myFundraisersBtnText}>My Fundraisers</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
