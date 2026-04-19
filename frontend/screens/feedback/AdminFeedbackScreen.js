@@ -2,13 +2,16 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Modal, TextInput, ActivityIndicator, RefreshControl,
-  KeyboardAvoidingView, Platform, ScrollView
+  KeyboardAvoidingView, Platform, ScrollView, Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../components/Toast';
 import api from '../../api';
+
+const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
 const AdminFeedbackScreen = () => {
   const t = useTheme();
@@ -20,6 +23,7 @@ const AdminFeedbackScreen = () => {
   const [filter, setFilter] = useState('pending');
   const [selected, setSelected] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [replyImage, setReplyImage] = useState(null);
   const [replying, setReplying] = useState(false);
 
   const fetchData = async () => {
@@ -37,14 +41,35 @@ const AdminFeedbackScreen = () => {
   useFocusEffect(useCallback(() => { fetchData(); }, []));
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
+  const openFeedback = (item) => {
+    setSelected(item);
+    setReplyText('');
+    setReplyImage(null);
+  };
+
+  const pickReplyImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) setReplyImage(result.assets[0].uri);
+  };
+
   const handleReply = async () => {
     if (!replyText.trim()) { toast.error('Required', 'Please write a reply'); return; }
     setReplying(true);
     try {
-      const res = await api.post(`/api/user-feedback/${selected._id}/reply`, { reply: replyText.trim() });
+      const formData = new FormData();
+      formData.append('reply', replyText.trim());
+      if (replyImage) {
+        formData.append('image', { uri: replyImage, type: 'image/jpeg', name: 'reply.jpg' });
+      }
+      const res = await api.post(`/api/user-feedback/${selected._id}/reply`, formData);
       setFeedbacks(prev => prev.map(f => f._id === selected._id ? res.data : f));
       setSelected(res.data);
       setReplyText('');
+      setReplyImage(null);
       toast.success('Replied', 'Reply sent to user');
     } catch (e) {
       toast.error('Error', e.response?.data?.message || 'Failed to send reply');
@@ -105,7 +130,7 @@ const AdminFeedbackScreen = () => {
           renderItem={({ item }) => {
             const isPending = item.status === 'pending';
             return (
-              <TouchableOpacity style={[s.card, isPending && s.cardPending]} onPress={() => { setSelected(item); setReplyText(''); }}>
+              <View style={[s.card, isPending && s.cardPending]}>
                 <View style={s.cardRow}>
                   <View style={[s.userAvatar, { backgroundColor: isPending ? t.warningBg : t.accentBg }]}>
                     <Text style={[s.userAvatarText, { color: isPending ? t.warning : t.accent }]}>
@@ -125,7 +150,23 @@ const AdminFeedbackScreen = () => {
                 <Text style={s.cardTitle}>{item.title}</Text>
                 <Text style={s.cardMsg} numberOfLines={2}>{item.message}</Text>
                 <Text style={s.cardDate}>{new Date(item.createdAt).toDateString()}</Text>
-              </TouchableOpacity>
+
+                {/* Action button */}
+                <TouchableOpacity
+                  style={[s.actionBtn, { backgroundColor: isPending ? t.accent : t.bgCardAlt, borderColor: isPending ? t.accent : t.border }]}
+                  onPress={() => openFeedback(item)}
+                >
+                  <Ionicons
+                    name={isPending ? 'send-outline' : 'eye-outline'}
+                    size={14}
+                    color={isPending ? '#fff' : t.textSub}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[s.actionBtnText, { color: isPending ? '#fff' : t.textSub }]}>
+                    {isPending ? 'Reply' : 'View'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             );
           }}
         />
@@ -167,44 +208,79 @@ const AdminFeedbackScreen = () => {
                     <Text style={s.mSectionTitle}>Feedback</Text>
                     <Text style={s.mFeedbackTitle}>{selected.title}</Text>
                     <Text style={s.mFeedbackMsg}>{selected.message}</Text>
+                    {selected.image ? (
+                      <Image source={{ uri: `${BASE_URL}/${selected.image}` }} style={s.feedbackImage} resizeMode="cover" />
+                    ) : null}
                     <Text style={s.mDate}>{new Date(selected.createdAt).toDateString()}</Text>
                   </View>
 
-                  {/* Existing reply */}
-                  {selected.status === 'replied' && selected.adminReply ? (
+                  {/* Existing replies */}
+                  {selected.replies?.length > 0 && (
                     <View style={s.mSection}>
-                      <Text style={s.mSectionTitle}>Your Reply</Text>
-                      <View style={s.replyBox}>
+                      <Text style={s.mSectionTitle}>Replies ({selected.replies.length})</Text>
+                      {selected.replies.map((r, i) => (
+                        <View key={i} style={[s.replyItem, i > 0 && s.replyItemBorder]}>
+                          <Text style={s.replyText}>{r.text}</Text>
+                          {r.image ? (
+                            <Image source={{ uri: `${BASE_URL}/${r.image}` }} style={s.replyImage} resizeMode="cover" />
+                          ) : null}
+                          <Text style={s.replyDate}>{r.createdAt ? new Date(r.createdAt).toDateString() : ''}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Legacy reply (before replies array was introduced) */}
+                  {(!selected.replies || selected.replies.length === 0) && selected.status === 'replied' && selected.adminReply ? (
+                    <View style={s.mSection}>
+                      <Text style={s.mSectionTitle}>Reply</Text>
+                      <View style={s.replyItem}>
                         <Text style={s.replyText}>{selected.adminReply}</Text>
                         <Text style={s.replyDate}>{selected.repliedAt ? new Date(selected.repliedAt).toDateString() : ''}</Text>
                       </View>
                     </View>
-                  ) : (
-                    <View style={s.mSection}>
-                      <Text style={s.mSectionTitle}>Write a Reply</Text>
-                      <TextInput
-                        style={s.replyInput}
-                        placeholder="Type your reply to the user..."
-                        placeholderTextColor={t.textMuted}
-                        value={replyText}
-                        onChangeText={setReplyText}
-                        multiline
-                        numberOfLines={4}
-                      />
-                      <TouchableOpacity
-                        style={[s.replyBtn, replying && { opacity: 0.6 }]}
-                        onPress={handleReply}
-                        disabled={replying}
-                      >
-                        {replying ? <ActivityIndicator size="small" color="#fff" /> : (
-                          <>
-                            <Ionicons name="send-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
-                            <Text style={s.replyBtnText}>Send Reply</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  ) : null}
+
+                  {/* Add new reply */}
+                  <View style={s.mSection}>
+                    <Text style={s.mSectionTitle}>{selected.replies?.length > 0 ? 'Add Another Reply' : 'Write a Reply'}</Text>
+                    <TextInput
+                      style={s.replyInput}
+                      placeholder="Type your reply to the user..."
+                      placeholderTextColor={t.textMuted}
+                      value={replyText}
+                      onChangeText={setReplyText}
+                      multiline
+                      numberOfLines={4}
+                    />
+
+                    {/* Image picker */}
+                    <TouchableOpacity style={s.imagePickerBtn} onPress={pickReplyImage}>
+                      <Ionicons name="image-outline" size={18} color={t.textSub} style={{ marginRight: 8 }} />
+                      <Text style={s.imagePickerText}>{replyImage ? 'Change Image' : 'Attach Image (optional)'}</Text>
+                    </TouchableOpacity>
+                    {replyImage ? (
+                      <View style={s.previewContainer}>
+                        <Image source={{ uri: replyImage }} style={s.previewImage} resizeMode="cover" />
+                        <TouchableOpacity style={s.removeImageBtn} onPress={() => setReplyImage(null)}>
+                          <Ionicons name="close-circle" size={22} color={t.danger} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    <TouchableOpacity
+                      style={[s.replyBtn, replying && { opacity: 0.6 }]}
+                      onPress={handleReply}
+                      disabled={replying}
+                    >
+                      {replying ? <ActivityIndicator size="small" color="#fff" /> : (
+                        <>
+                          <Ionicons name="send-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
+                          <Text style={s.replyBtnText}>Send Reply</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </ScrollView>
               </View>
             </View>
@@ -239,7 +315,9 @@ const makeStyles = (t) => StyleSheet.create({
   badgeText: { fontSize: 11, fontWeight: 'bold' },
   cardTitle: { fontSize: 14, fontWeight: '700', color: t.text, marginBottom: 4 },
   cardMsg: { fontSize: 13, color: t.textSub, lineHeight: 18 },
-  cardDate: { fontSize: 10, color: t.textMuted, marginTop: 6 },
+  cardDate: { fontSize: 10, color: t.textMuted, marginTop: 6, marginBottom: 10 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, alignSelf: 'flex-start' },
+  actionBtnText: { fontSize: 13, fontWeight: '600' },
   empty: { alignItems: 'center', marginTop: 60 },
   emptyTitle: { fontSize: 16, color: t.textMuted, marginTop: 12 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -256,11 +334,19 @@ const makeStyles = (t) => StyleSheet.create({
   mFeedbackTitle: { fontSize: 16, fontWeight: 'bold', color: t.text, marginBottom: 6 },
   mFeedbackMsg: { fontSize: 14, color: t.textSub, lineHeight: 20 },
   mDate: { fontSize: 10, color: t.textMuted, marginTop: 8 },
-  replyBox: { backgroundColor: t.accentBg, borderRadius: 10, padding: 12, borderLeftWidth: 2, borderLeftColor: t.accent },
+  feedbackImage: { width: '100%', height: 160, borderRadius: 10, marginTop: 10 },
+  replyItem: { paddingVertical: 8 },
+  replyItemBorder: { borderTopWidth: 1, borderTopColor: t.borderLight },
   replyText: { fontSize: 14, color: t.text, lineHeight: 20 },
+  replyImage: { width: '100%', height: 140, borderRadius: 8, marginTop: 8 },
   replyDate: { fontSize: 10, color: t.textMuted, marginTop: 4 },
-  replyInput: { backgroundColor: t.bgInput, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 14, color: t.text, minHeight: 100, textAlignVertical: 'top' },
-  replyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, borderRadius: 10, padding: 13, marginTop: 10 },
+  replyInput: { backgroundColor: t.bgInput, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 14, color: t.text, minHeight: 100, textAlignVertical: 'top', marginBottom: 10 },
+  imagePickerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.bgInput, borderWidth: 1, borderColor: t.border, borderRadius: 8, padding: 10, marginBottom: 10 },
+  imagePickerText: { fontSize: 13, color: t.textSub },
+  previewContainer: { position: 'relative', marginBottom: 10 },
+  previewImage: { width: '100%', height: 140, borderRadius: 10 },
+  removeImageBtn: { position: 'absolute', top: 6, right: 6 },
+  replyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, borderRadius: 10, padding: 13, marginTop: 4 },
   replyBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 });
 

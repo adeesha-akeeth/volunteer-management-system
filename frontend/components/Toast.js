@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useRef, useState, useCallback } from 'react';
-import { Animated, Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Animated, Text, View, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const ToastContext = createContext(null);
@@ -51,19 +51,23 @@ export const ToastProvider = ({ children }) => {
     <ToastContext.Provider value={showToast}>
       {children}
       {toast && (
-        <Animated.View
-          style={[styles.toast, { backgroundColor: theme.bg, borderLeftColor: theme.border, transform: [{ translateY: slideY }], opacity }]}
-          pointerEvents="box-none"
-        >
-          <Ionicons name={theme.icon} size={22} color="#fff" style={styles.icon} />
-          <View style={styles.textContainer}>
-            {toast.title ? <Text style={styles.title}>{toast.title}</Text> : null}
-            {toast.message ? <Text style={styles.message}>{toast.message}</Text> : null}
+        <Modal visible transparent animationType="none" statusBarTranslucent>
+          <View style={styles.modalContainer} pointerEvents="box-none">
+            <Animated.View
+              style={[styles.toast, { backgroundColor: theme.bg, borderLeftColor: theme.border, transform: [{ translateY: slideY }], opacity }]}
+              pointerEvents="box-none"
+            >
+              <Ionicons name={theme.icon} size={22} color="#fff" style={styles.icon} />
+              <View style={styles.textContainer}>
+                {toast.title ? <Text style={styles.title}>{toast.title}</Text> : null}
+                {toast.message ? <Text style={styles.message}>{toast.message}</Text> : null}
+              </View>
+              <TouchableOpacity onPress={dismiss} style={styles.closeBtn}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.8)" />
+              </TouchableOpacity>
+            </Animated.View>
           </View>
-          <TouchableOpacity onPress={dismiss} style={styles.closeBtn}>
-            <Ionicons name="close" size={18} color="rgba(255,255,255,0.8)" />
-          </TouchableOpacity>
-        </Animated.View>
+        </Modal>
       )}
     </ToastContext.Provider>
   );
@@ -80,6 +84,7 @@ export const useToast = () => {
 };
 
 const styles = StyleSheet.create({
+  modalContainer: { flex: 1 },
   toast: {
     position: 'absolute',
     top: 50,
@@ -96,7 +101,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    zIndex: 9999,
   },
   icon: { marginRight: 10 },
   textContainer: { flex: 1 },

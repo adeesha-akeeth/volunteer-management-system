@@ -258,6 +258,7 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
                   keyboardType="decimal-pad"
                   autoFocus
                 />
+                <Text style={styles.inputHint}>Enter the total hours as a number. Decimals are accepted (e.g. 1.5 for 1 hr 30 min).</Text>
 
                 <Text style={styles.label}>Description (optional)</Text>
                 <TextInput
@@ -309,6 +310,7 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
                   keyboardType="decimal-pad"
                   autoFocus
                 />
+                <Text style={styles.inputHint}>Enter the total hours as a number. Decimals are accepted (e.g. 1.5 for 1 hr 30 min).</Text>
 
                 <Text style={styles.label}>Description (optional)</Text>
                 <TextInput
@@ -401,6 +403,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 4 },
   modalSubtitle: { fontSize: 14, color: '#888', marginBottom: 18 },
   label: { fontSize: 13, fontWeight: 'bold', color: '#555', marginBottom: 6 },
+  inputHint: { fontSize: 11, color: '#999', marginTop: -10, marginBottom: 14, lineHeight: 16 },
   input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333', marginBottom: 14 },
   textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, fontSize: 15, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 80, textAlignVertical: 'top', marginBottom: 14 },
   pointsPreview: { backgroundColor: '#f8f4ff', borderRadius: 10, padding: 12, marginBottom: 16, alignItems: 'center' },

@@ -791,6 +791,7 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
               onChangeText={setContribHours}
               keyboardType="decimal-pad"
             />
+            <Text style={styles.contribInputHint}>Enter total hours as a number — decimals accepted (e.g. 1.5 = 1 hr 30 min).</Text>
             <Text style={styles.contribInputLabel}>Description (optional)</Text>
             <TextInput
               style={[styles.contribInput, { minHeight: 70, textAlignVertical: 'top' }]}
@@ -1065,6 +1066,7 @@ const styles = StyleSheet.create({
   logContribBtn: { backgroundColor: '#27ae60', borderRadius: 10, padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   logContribBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   contribInputLabel: { fontSize: 13, fontWeight: 'bold', color: '#555', marginBottom: 6 },
+  contribInputHint: { fontSize: 11, color: '#999', marginTop: -10, marginBottom: 14, lineHeight: 16 },
   contribInput: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, fontSize: 15, borderWidth: 1, borderColor: '#ddd', color: '#333', marginBottom: 14 },
   contribPointsPreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f4ff', borderRadius: 10, padding: 12, marginBottom: 16 },
   contribPointsText: { fontSize: 13, color: '#555' }

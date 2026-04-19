@@ -8,13 +8,14 @@ const createFeedback = async (req, res) => {
     if (!title?.trim() || !message?.trim()) {
       return res.status(400).json({ message: 'Title and message are required' });
     }
+    const imageUrl = req.file ? req.file.path.replace(/\\/g, '/') : '';
     const feedback = await UserFeedback.create({
       user: req.user.id,
       title: title.trim(),
-      message: message.trim()
+      message: message.trim(),
+      image: imageUrl
     });
 
-    // Notify admin
     try {
       const admin = await User.findOne({ role: 'admin' });
       if (admin) {
@@ -73,7 +74,6 @@ const deleteFeedback = async (req, res) => {
   }
 };
 
-// Admin: get all feedbacks
 const getAllFeedbacks = async (req, res) => {
   try {
     const { status } = req.query;
@@ -87,7 +87,6 @@ const getAllFeedbacks = async (req, res) => {
   }
 };
 
-// Admin: reply to feedback
 const replyToFeedback = async (req, res) => {
   try {
     const { reply } = req.body;
@@ -96,12 +95,13 @@ const replyToFeedback = async (req, res) => {
     const feedback = await UserFeedback.findById(req.params.id).populate('user', 'name');
     if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
 
+    const imageUrl = req.file ? req.file.path.replace(/\\/g, '/') : '';
+    feedback.replies.push({ text: reply.trim(), image: imageUrl });
     feedback.adminReply = reply.trim();
     feedback.status = 'replied';
     feedback.repliedAt = new Date();
     await feedback.save();
 
-    // Notify the user
     try {
       await Notification.create({
         recipient: feedback.user._id,
