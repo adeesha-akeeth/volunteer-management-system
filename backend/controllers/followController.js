@@ -119,7 +119,7 @@ const findPublishers = async (req, res) => {
 
     const creatorIds = await Opportunity.distinct('createdBy');
 
-    let userFilter = { _id: { $in: creatorIds } };
+    let userFilter = { _id: { $in: creatorIds, $ne: req.user.id } };
     if (search) userFilter.name = { $regex: search, $options: 'i' };
 
     const publishers = await User.find(userFilter).select('name profileImage');
@@ -129,11 +129,13 @@ const findPublishers = async (req, res) => {
 
     const result = await Promise.all(publishers.map(async (pub) => {
       const stats = await getPublisherStats(pub._id);
+      const followerCount = await Follow.countDocuments({ following: pub._id });
       return {
         _id: pub._id,
         name: pub.name,
         profileImage: pub.profileImage,
         isFollowing: myFollowingSet.has(pub._id.toString()),
+        followerCount,
         ...stats
       };
     }));

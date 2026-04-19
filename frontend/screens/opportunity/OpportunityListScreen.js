@@ -325,7 +325,7 @@ const OpportunityListScreen = ({ navigation }) => {
 
             {!isAdmin && (
               <TouchableOpacity style={s.heartButton} onPress={(e) => { e.stopPropagation?.(); handleAddToFavourites(item); }}>
-                <Ionicons name="heart" size={15} color={t.danger} />
+                <Ionicons name="bookmark-outline" size={15} color={t.accent} />
               </TouchableOpacity>
             )}
             <View style={[s.applyBadge, (isOwn || item.status === 'closed') && s.applyBadgeOwn]}>

@@ -84,7 +84,7 @@ const MyFeedbackScreen = () => {
     try {
       if (photo) {
         const formData = new FormData();
-        formData.append('opportunityId', selectedOpportunity._id);
+        formData.append('opportunityId', selectedOpportunity?._id || selectedOpportunity);
         formData.append('rating', rating);
         formData.append('comment', comment);
         const filename = photo.uri.split('/').pop();
@@ -94,7 +94,7 @@ const MyFeedbackScreen = () => {
         await api.post('/api/feedback', formData);
       } else {
         await api.post('/api/feedback', {
-          opportunityId: selectedOpportunity._id,
+          opportunityId: selectedOpportunity?._id || selectedOpportunity,
           rating,
           comment
         });

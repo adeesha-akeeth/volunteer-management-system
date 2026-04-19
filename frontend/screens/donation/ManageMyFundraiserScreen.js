@@ -48,7 +48,7 @@ const ManageMyFundraiserScreen = ({ route, navigation }) => {
         api.get(`/api/donations/fundraiser/${fundraiserId}`)
       ]);
       setFundraiser(frRes.data);
-      setDonations(donRes.data);
+      setDonations(donRes.data?.donations || donRes.data || []);
     } catch {
       toast.error('Error', 'Failed to load fundraiser data');
     } finally {

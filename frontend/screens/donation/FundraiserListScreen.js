@@ -118,6 +118,13 @@ const FundraiserListScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Support a Cause</Text>
         <Text style={styles.headerSubtitle}>Find fundraisers that need your help</Text>
+        <TouchableOpacity
+          style={styles.myFundraisersBtn}
+          onPress={() => navigation.navigate('MyFundraisers')}
+        >
+          <Ionicons name="list-outline" size={15} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={styles.myFundraisersBtnText}>My Fundraisers</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
@@ -154,6 +161,8 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#27ae60', padding: 20 },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
   headerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
+  myFundraisersBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 12, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  myFundraisersBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, margin: 15, marginBottom: 0, borderWidth: 1, borderColor: '#ddd' },
   searchInput: { flex: 1, padding: 12, fontSize: 15 },
   card: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 16, elevation: 3, overflow: 'hidden' },

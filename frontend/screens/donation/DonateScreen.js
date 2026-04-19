@@ -31,6 +31,9 @@ const DonateScreen = ({ route, navigation }) => {
     if (!amount || isNaN(amount) || Number(amount) < 1) {
       toast.error('Invalid Amount', 'Please enter a valid amount (minimum LKR 1)'); return;
     }
+    if (!receiptImage) {
+      toast.error('Receipt Required', 'Please upload your bank receipt photo before submitting.'); return;
+    }
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -79,7 +82,7 @@ const DonateScreen = ({ route, navigation }) => {
             <Text style={styles.label}>Message (optional)</Text>
             <TextInput style={styles.textArea} placeholderTextColor="#999" placeholder="Leave a message of support..." value={message} onChangeText={setMessage} multiline numberOfLines={3} />
 
-            <Text style={styles.label}>Bank Receipt Photo</Text>
+            <Text style={styles.label}>Bank Receipt Photo *</Text>
             <TouchableOpacity style={styles.imagePickerButton} onPress={pickReceipt}>
               <Text style={styles.imagePickerText}>{receiptImage ? '✅ Receipt Selected — tap to change' : '📷 Upload Bank Receipt Photo'}</Text>
             </TouchableOpacity>

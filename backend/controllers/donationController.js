@@ -31,7 +31,7 @@ const createDonation = async (req, res) => {
     const donation = await Donation.create({
       donor: req.user.id,
       fundraiser: fundraiserId,
-      opportunity: fundraiser.opportunity._id,
+      opportunity: fundraiser.opportunity?._id || undefined,
       amount,
       message: message || '',
       donorName: donorName || '',
@@ -43,15 +43,17 @@ const createDonation = async (req, res) => {
       .populate('fundraiser', 'name targetAmount status')
       .populate('opportunity', 'title');
 
-    // Notify opportunity creator
-    try {
-      await Notification.create({
-        recipient: fundraiser.opportunity.createdBy,
-        type: 'donation_received',
-        message: `A new donation of LKR ${amount} was received for "${fundraiser.name}"`,
-        relatedId: fundraiser.opportunity._id
-      });
-    } catch {}
+    // Notify opportunity creator (only for opportunity-linked fundraisers)
+    if (fundraiser.opportunity) {
+      try {
+        await Notification.create({
+          recipient: fundraiser.opportunity.createdBy,
+          type: 'donation_received',
+          message: `A new donation of LKR ${amount} was received for "${fundraiser.name}"`,
+          relatedId: fundraiser.opportunity._id
+        });
+      } catch {}
+    }
 
     res.status(201).json({ message: 'Donation submitted successfully', donation: populated });
   } catch (error) {
@@ -80,9 +82,9 @@ const getMyDonations = async (req, res) => {
 // Get donations for a specific fundraiser (creator only)
 const getDonationsByFundraiser = async (req, res) => {
   try {
-    const fundraiser = await Fundraiser.findById(req.params.fundraiserId).populate('opportunity');
+    const fundraiser = await Fundraiser.findById(req.params.fundraiserId);
     if (!fundraiser) return res.status(404).json({ message: 'Fundraiser not found' });
-    if (fundraiser.opportunity.createdBy.toString() !== req.user.id) {
+    if (fundraiser.createdBy.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
@@ -110,11 +112,15 @@ const updateDonationStatus = async (req, res) => {
     }
 
     const donation = await Donation.findById(req.params.id)
-      .populate({ path: 'fundraiser', populate: { path: 'opportunity' } });
+      .populate({ path: 'fundraiser', populate: [{ path: 'opportunity' }, { path: 'createdBy' }] });
     if (!donation) return res.status(404).json({ message: 'Donation not found' });
 
-    if (donation.fundraiser.opportunity.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Only the opportunity creator can review donations' });
+    const fundraiser = donation.fundraiser;
+    const isAuthorized = fundraiser.opportunity
+      ? fundraiser.opportunity.createdBy.toString() === req.user.id
+      : fundraiser.createdBy._id.toString() === req.user.id;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: 'Only the fundraiser creator can review donations' });
     }
 
     donation.status = status;
@@ -123,13 +129,13 @@ const updateDonationStatus = async (req, res) => {
     // Notify the donor
     try {
       const statusMsg = status === 'confirmed'
-        ? `Your donation to "${donation.fundraiser.name}" has been confirmed. Thank you!`
-        : `Your donation to "${donation.fundraiser.name}" was rejected.`;
+        ? `Your donation to "${fundraiser.name}" has been confirmed. Thank you!`
+        : `Your donation to "${fundraiser.name}" was rejected.`;
       await Notification.create({
         recipient: donation.donor,
         type: 'donation_status',
         message: statusMsg,
-        relatedId: donation.fundraiser.opportunity._id
+        relatedId: fundraiser.opportunity?._id || fundraiser._id
       });
     } catch {}
 

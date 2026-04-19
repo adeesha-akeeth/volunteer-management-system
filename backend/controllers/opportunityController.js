@@ -175,6 +175,14 @@ const getOpportunityById = async (req, res) => {
 
     const userId = req.user?.id || null;
     const [result] = await attachExtras([opportunity], userId);
+
+    const filledCount = await Application.countDocuments({
+      opportunity: opportunity._id,
+      status: { $in: ['approved', 'completed'] }
+    });
+    result.spotsLeft = Math.max(0, opportunity.spotsAvailable - filledCount);
+    result.filledCount = filledCount;
+
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

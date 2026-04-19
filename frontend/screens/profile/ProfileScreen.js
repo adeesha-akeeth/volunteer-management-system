@@ -78,7 +78,7 @@ const ProfileScreen = ({ navigation }) => {
           <NavRow icon="heart-outline" label="My Favourites" onPress={() => navigation.navigate('FavouritesList')} color={t.danger} />
           <NavRow icon="thumbs-up-outline" label="My Likes & Comments" onPress={() => navigation.navigate('MyLikesComments')} />
           <NavRow icon="checkmark-circle-outline" label="Verify Contributions" onPress={() => navigation.navigate('AllContributions')} color={t.success} />
-          <NavRow icon="chatbubble-ellipses-outline" label="My Feedback" onPress={() => navigation.navigate('Feedback')} color={t.purple} />
+          <NavRow icon="chatbubble-ellipses-outline" label="Feedbacks" onPress={() => navigation.navigate('Feedback')} color={t.purple} />
         </View>
       )}
 

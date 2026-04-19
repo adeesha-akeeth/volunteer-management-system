@@ -188,6 +188,10 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   const [ratingCount, setRatingCount] = useState(0);
   const [ratingLoading, setRatingLoading] = useState(false);
 
+  const [favLists, setFavLists] = useState([]);
+  const [favModalVisible, setFavModalVisible] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
+
   const fetchData = async () => {
     try {
       const fetches = [
@@ -254,6 +258,41 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleOpenFav = async () => {
+    setFavLoading(true);
+    setFavModalVisible(true);
+    try {
+      const res = await api.get('/api/favourites');
+      setFavLists(res.data);
+    } catch {
+      toast.error('Error', 'Failed to load your lists');
+      setFavModalVisible(false);
+    } finally {
+      setFavLoading(false);
+    }
+  };
+
+  const handleAddToFavList = async (listId) => {
+    setFavModalVisible(false);
+    try {
+      await api.post(`/api/favourites/${listId}/add`, { opportunityId });
+      toast.success('Saved!', `"${opportunity?.title}" added to your list.`);
+    } catch (error) {
+      toast.error('Error', error.response?.data?.message || 'Failed to add');
+    }
+  };
+
+  const handleCreateFavAndAdd = async () => {
+    setFavModalVisible(false);
+    try {
+      const res = await api.post('/api/favourites', { name: 'Favourites', description: 'My saved opportunities' });
+      await api.post(`/api/favourites/${res.data._id}/add`, { opportunityId });
+      toast.success('Saved!', `Created "Favourites" list and added "${opportunity?.title}".`);
+    } catch {
+      toast.error('Error', 'Failed to save');
+    }
+  };
 
   const handleVote = async (vote) => {
     try {
@@ -514,7 +553,14 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         ) : null}
         <DetailRow icon="location-outline" label="Location" value={opportunity.location} />
         <DetailRow icon="calendar-outline" label="Date" value={formatDateRange(opportunity)} />
-        <DetailRow icon="people-outline" label="Spots Available" value={`${opportunity.spotsAvailable} spots`} />
+        <DetailRow
+          icon="people-outline"
+          label="Spots"
+          value={opportunity.spotsLeft !== undefined
+            ? `${opportunity.spotsLeft} of ${opportunity.spotsAvailable} spots left`
+            : `${opportunity.spotsAvailable} spots`}
+          valueStyle={opportunity.spotsLeft === 0 ? { color: '#e74c3c' } : opportunity.spotsLeft <= 2 ? { color: '#f39c12' } : undefined}
+        />
         <DetailRow
           icon="person-outline"
           label="Posted by"
@@ -586,27 +632,34 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
             <Text style={styles.manageButtonText}>Manage Opportunity</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={[styles.applyButton, (isPast || opportunity.status !== 'open') && styles.disabledButton]}
-            onPress={() => {
-              if (isPast) { toast.info('Ended', 'This opportunity has already ended.'); return; }
-              if (opportunity.status === 'closed') { toast.info('Closed', 'Applications are closed for this opportunity.'); return; }
-              if (myApplicationStatus === 'pending') {
-                toast.info('Already Applied', 'Your application is under review. Check My Applications for status.');
-                return;
-              }
-              if (myApplicationStatus === 'approved') {
-                toast.info('Already Accepted', 'You have already been accepted for this opportunity.');
-                return;
-              }
-              navigation.navigate('Apply', { opportunity });
-            }}
-            disabled={isPast || opportunity.status !== 'open'}
-          >
-            <Text style={styles.applyButtonText}>
-              {isPast ? 'Opportunity Ended' : opportunity.status === 'closed' ? 'Applications Closed' : 'Apply Now'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.applyRow}>
+            <TouchableOpacity
+              style={[styles.applyButton, (isPast || opportunity.status !== 'open') && styles.disabledButton]}
+              onPress={() => {
+                if (isPast) { toast.info('Ended', 'This opportunity has already ended.'); return; }
+                if (opportunity.status === 'closed') { toast.info('Closed', 'Applications are closed for this opportunity.'); return; }
+                if (myApplicationStatus === 'pending') {
+                  toast.info('Already Applied', 'Your application is under review. Check My Applications for status.');
+                  return;
+                }
+                if (myApplicationStatus === 'approved') {
+                  toast.info('Already Accepted', 'You have already been accepted for this opportunity.');
+                  return;
+                }
+                navigation.navigate('Apply', { opportunity });
+              }}
+              disabled={isPast || opportunity.status !== 'open'}
+            >
+              <Text style={styles.applyButtonText}>
+                {isPast ? 'Opportunity Ended' : opportunity.status === 'closed' ? 'Applications Closed' : 'Apply Now'}
+              </Text>
+            </TouchableOpacity>
+            {user && (
+              <TouchableOpacity style={styles.saveButton} onPress={handleOpenFav}>
+                <Ionicons name="bookmark-outline" size={22} color="#2e86de" />
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
 
@@ -834,6 +887,39 @@ const OpportunityDetailScreen = ({ route, navigation }) => {
         </View>
       </Modal>
     </ScrollView>
+
+    {/* Favourites Modal */}
+    <Modal visible={favModalVisible} transparent animationType="slide" onRequestClose={() => setFavModalVisible(false)}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFavModalVisible(false)}>
+        <View style={styles.editModal} onStartShouldSetResponder={() => true}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.formTitle}>Save to List</Text>
+          {favLoading ? (
+            <ActivityIndicator color="#2e86de" style={{ marginVertical: 20 }} />
+          ) : favLists.length === 0 ? (
+            <TouchableOpacity style={styles.favListItem} onPress={handleCreateFavAndAdd}>
+              <Ionicons name="add-circle-outline" size={20} color="#2e86de" style={{ marginRight: 10 }} />
+              <Text style={styles.favListItemText}>Create "Favourites" list & save</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              {favLists.map(list => (
+                <TouchableOpacity key={list._id} style={styles.favListItem} onPress={() => handleAddToFavList(list._id)}>
+                  <Ionicons name="bookmark-outline" size={20} color="#2e86de" style={{ marginRight: 10 }} />
+                  <Text style={styles.favListItemText}>{list.name}</Text>
+                  <Text style={styles.favListItemCount}>{list.opportunities?.length || 0}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={[styles.favListItem, { marginTop: 4, borderTopWidth: 1, borderTopColor: '#f0f0f0' }]} onPress={handleCreateFavAndAdd}>
+                <Ionicons name="add-circle-outline" size={20} color="#888" style={{ marginRight: 10 }} />
+                <Text style={[styles.favListItemText, { color: '#888' }]}>Create new list</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
     </KeyboardAvoidingView>
   );
 };
@@ -890,11 +976,16 @@ const styles = StyleSheet.create({
   donateBtn: { flex: 1, backgroundColor: '#27ae60', borderRadius: 8, padding: 10, alignItems: 'center' },
   donateBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   buttonContainer: { marginBottom: 15 },
-  applyButton: { backgroundColor: '#27ae60', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10 },
+  applyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  applyButton: { flex: 1, backgroundColor: '#27ae60', borderRadius: 10, padding: 15, alignItems: 'center' },
   disabledButton: { backgroundColor: '#aaa' },
   applyButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  saveButton: { backgroundColor: '#e8f4fd', borderRadius: 10, padding: 15, borderWidth: 1.5, borderColor: '#2e86de', justifyContent: 'center', alignItems: 'center' },
   manageButton: { backgroundColor: '#2e86de', borderRadius: 10, padding: 15, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center' },
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  favListItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  favListItemText: { flex: 1, fontSize: 15, color: '#333', fontWeight: '600' },
+  favListItemCount: { fontSize: 13, color: '#aaa', fontWeight: 'bold' },
   // Rating
   ratingRow: { marginBottom: 6 },
   avgRatingText: { fontSize: 15, color: '#f39c12', fontWeight: 'bold' },

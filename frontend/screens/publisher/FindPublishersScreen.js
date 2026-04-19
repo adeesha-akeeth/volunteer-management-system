@@ -93,7 +93,7 @@ const FindPublishersScreen = ({ navigation, route }) => {
               )}
             </View>
             <Text style={styles.stats}>
-              {item.opportunityCount} total opportunit{item.opportunityCount === 1 ? 'y' : 'ies'}
+              {item.opportunityCount} opportunit{item.opportunityCount === 1 ? 'y' : 'ies'} · {item.followerCount || 0} follower{item.followerCount === 1 ? '' : 's'}
             </Text>
           </View>
         </TouchableOpacity>
