@@ -4,7 +4,7 @@ const Favourite = require('../models/Favourite');
 const createFavouriteList = async (req, res) => {
   try {
     const { name, description } = req.body;
-    const photo = req.file ? req.file.path : '';
+    const photo = req.file ? req.file.path.replace(/\\/g, '/') : '';
 
     const favourite = await Favourite.create({
       user: req.user.id,
@@ -47,11 +47,11 @@ const updateFavouriteList = async (req, res) => {
     if (removePhoto === 'true') {
       favourite.photo = '';
     } else if (req.file) {
-      favourite.photo = req.file.path;
+      favourite.photo = req.file.path.replace(/\\/g, '/');
     }
 
     await favourite.save();
-    res.status(200).json({ message: 'List updated', favourite });
+    res.status(200).json(favourite);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

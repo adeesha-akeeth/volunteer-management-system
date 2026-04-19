@@ -6,8 +6,10 @@ import {
   KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmModal';
+import AutoHeightImage from '../../components/AutoHeightImage';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
@@ -23,12 +25,16 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
   const [contribModal, setContribModal] = useState(null);
   const [hours, setHours] = useState('');
   const [description, setDescription] = useState('');
+  const [proofImage, setProofImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Edit contribution modal
-  const [editModal, setEditModal] = useState(null); // { contribution, opportunityId }
+  const [editModal, setEditModal] = useState(null);
   const [editHours, setEditHours] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editProofImage, setEditProofImage] = useState(null);       // new local URI
+  const [editExistingProof, setEditExistingProof] = useState(null); // current saved path
+  const [editRemoveProof, setEditRemoveProof] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchData = async () => {
@@ -50,6 +56,16 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
     setContribModal(opportunity);
     setHours('');
     setDescription('');
+    setProofImage(null);
+  };
+
+  const pickProof = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.canceled) setProofImage(result.assets[0].uri);
   };
 
   const handleSubmitContribution = async () => {
@@ -57,13 +73,18 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
       toast.warning('Invalid', 'Please enter at least 0.5 hours');
       return;
     }
+    if (!proofImage) {
+      toast.warning('Required', 'Please upload a proof photo');
+      return;
+    }
     setSubmitting(true);
     try {
-      await api.post('/api/contributions', {
-        opportunityId: contribModal._id,
-        hours: Number(hours),
-        description
-      });
+      const formData = new FormData();
+      formData.append('opportunityId', contribModal._id);
+      formData.append('hours', String(Number(hours)));
+      formData.append('description', description);
+      formData.append('proofImage', { uri: proofImage, type: 'image/jpeg', name: 'proof.jpg' });
+      await api.post('/api/contributions', formData);
       toast.success('Submitted!', 'Your contribution has been sent for verification.');
       setContribModal(null);
       fetchData();
@@ -78,6 +99,21 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
     setEditModal(contribution);
     setEditHours(String(contribution.hours));
     setEditDescription(contribution.description || '');
+    setEditProofImage(null);
+    setEditExistingProof(contribution.proofImage || null);
+    setEditRemoveProof(false);
+  };
+
+  const pickEditProof = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.canceled) {
+      setEditProofImage(result.assets[0].uri);
+      setEditRemoveProof(false);
+    }
   };
 
   const handleEditContribution = async () => {
@@ -87,10 +123,15 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
     }
     setEditSubmitting(true);
     try {
-      await api.put(`/api/contributions/my/${editModal._id}`, {
-        hours: Number(editHours),
-        description: editDescription
-      });
+      const formData = new FormData();
+      formData.append('hours', String(Number(editHours)));
+      formData.append('description', editDescription);
+      if (editProofImage) {
+        formData.append('proofImage', { uri: editProofImage, type: 'image/jpeg', name: 'proof.jpg' });
+      } else if (editRemoveProof) {
+        formData.append('removeProofImage', 'true');
+      }
+      await api.put(`/api/contributions/my/${editModal._id}`, formData);
       toast.success('Updated', 'Contribution updated successfully.');
       setEditModal(null);
       fetchData();
@@ -122,6 +163,9 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
   const statusColor = (s) => ({ verified: '#27ae60', rejected: '#e74c3c' }[s] || '#f39c12');
   const statusLabel = (s) => ({ verified: 'Verified', rejected: 'Rejected', pending: 'Pending' }[s] || s);
 
+  // Image shown in edit modal
+  const editPreviewUri = editProofImage || (editExistingProof && !editRemoveProof ? `${BASE_URL}/${editExistingProof}` : null);
+
   const renderItem = ({ item }) => {
     const opp = item.opportunity;
     const contribs = item.contributions || [];
@@ -144,7 +188,7 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
         <View style={styles.cardBody}>
           <View style={styles.categoryBadge}><Text style={styles.categoryText}>{opp.category}</Text></View>
           <TouchableOpacity onPress={() => navigation.navigate('Home', { screen: 'OpportunityDetail', params: { opportunityId: opp._id } })} activeOpacity={0.7}>
-          <Text style={styles.cardTitle}>{opp.title}</Text>
+            <Text style={styles.cardTitle}>{opp.title}</Text>
           </TouchableOpacity>
           {opp.organization ? (
             <View style={styles.detailRow}>
@@ -157,7 +201,6 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
             <Text style={styles.cardDetail}>{opp.location}</Text>
           </View>
 
-          {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{verifiedHours}</Text>
@@ -173,7 +216,6 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* All contributions */}
           {contribs.length > 0 && (
             <View style={styles.contribsSection}>
               <Text style={styles.contribsSectionTitle}>Submissions</Text>
@@ -181,12 +223,19 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
                 <View key={c._id} style={styles.contribRow}>
                   <View style={styles.contribLeft}>
                     <View style={[styles.statusDot, { backgroundColor: statusColor(c.status) }]} />
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Ionicons name="time-outline" size={13} color="#555" style={{ marginRight: 4 }} />
                         <Text style={styles.contribHours}>{c.hours} hr{c.hours !== 1 ? 's' : ''}</Text>
                       </View>
                       {c.description ? <Text style={styles.contribDesc} numberOfLines={1}>{c.description}</Text> : null}
+                      {c.proofImage ? (
+                        <AutoHeightImage
+                          uri={`${BASE_URL}/${c.proofImage}`}
+                          style={styles.proofThumb}
+                          borderRadius={6}
+                        />
+                      ) : null}
                     </View>
                   </View>
                   <View style={styles.contribRight}>
@@ -271,6 +320,22 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
                   numberOfLines={3}
                 />
 
+                <Text style={styles.label}>Proof Photo *</Text>
+                <TouchableOpacity style={[styles.imagePickerBtn, !proofImage && styles.imagePickerBtnRequired]} onPress={pickProof}>
+                  <Ionicons name="camera-outline" size={18} color={proofImage ? '#27ae60' : '#9b59b6'} style={{ marginRight: 8 }} />
+                  <Text style={[styles.imagePickerText, proofImage && { color: '#27ae60' }]}>
+                    {proofImage ? '✓ Photo selected — tap to replace' : 'Upload proof photo (required)'}
+                  </Text>
+                </TouchableOpacity>
+                {proofImage ? (
+                  <View style={styles.proofPreviewContainer}>
+                    <AutoHeightImage uri={proofImage} borderRadius={10} />
+                    <TouchableOpacity style={styles.removeProofBtn} onPress={() => setProofImage(null)}>
+                      <Ionicons name="close-circle" size={26} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
                 <View style={styles.pointsPreview}>
                   <Text style={styles.pointsPreviewText}>
                     🏆 This will earn you <Text style={styles.pointsPreviewNum}>{Math.floor(Number(hours || 0) * 10)} pts</Text> once verified
@@ -323,6 +388,26 @@ const OngoingOpportunitiesScreen = ({ navigation }) => {
                   numberOfLines={3}
                 />
 
+                <Text style={styles.label}>Proof Photo</Text>
+                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickEditProof}>
+                  <Ionicons name="camera-outline" size={18} color="#9b59b6" style={{ marginRight: 8 }} />
+                  <Text style={styles.imagePickerText}>{editPreviewUri ? 'Replace proof photo' : 'Upload proof photo'}</Text>
+                </TouchableOpacity>
+                {editPreviewUri ? (
+                  <View style={styles.proofPreviewContainer}>
+                    <AutoHeightImage uri={editPreviewUri} borderRadius={10} />
+                    <TouchableOpacity
+                      style={styles.removeProofBtn}
+                      onPress={() => {
+                        if (editProofImage) setEditProofImage(null);
+                        else { setEditExistingProof(null); setEditRemoveProof(true); }
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={26} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
                 <View style={styles.pointsPreview}>
                   <Text style={styles.pointsPreviewText}>
                     🏆 Will earn <Text style={styles.pointsPreviewNum}>{Math.floor(Number(editHours || 0) * 10)} pts</Text> once verified
@@ -354,7 +439,6 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#fff', borderRadius: 12, marginHorizontal: 15, marginBottom: 14, elevation: 3, overflow: 'hidden' },
   cardImage: { width: '100%', height: 120 },
   cardImagePlaceholder: { width: '100%', height: 80, backgroundColor: '#e8f4fd', justifyContent: 'center', alignItems: 'center' },
-  placeholderText: { fontSize: 28 },
   cardBody: { padding: 14 },
   categoryBadge: { backgroundColor: '#e8f4fd', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 8 },
   categoryText: { color: '#2e86de', fontSize: 11, fontWeight: 'bold', textTransform: 'capitalize' },
@@ -369,11 +453,12 @@ const styles = StyleSheet.create({
 
   contribsSection: { marginBottom: 14 },
   contribsSectionTitle: { fontSize: 12, fontWeight: 'bold', color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  contribRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  contribLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  contribRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  contribLeft: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, flex: 1 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   contribHours: { fontSize: 14, fontWeight: '600', color: '#333' },
   contribDesc: { fontSize: 11, color: '#999', marginTop: 1, maxWidth: 160 },
+  proofThumb: { marginTop: 6, maxWidth: 120 },
   contribRight: { alignItems: 'flex-end', gap: 6 },
   statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1 },
   statusBadgeText: { fontSize: 11, fontWeight: 'bold' },
@@ -398,7 +483,7 @@ const styles = StyleSheet.create({
   // Modal
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalCenteredWrapper: { width: '90%', maxHeight: '80%', zIndex: 10 },
+  modalCenteredWrapper: { width: '90%', maxHeight: '85%', zIndex: 10 },
   modal: { backgroundColor: '#fff', borderRadius: 20, padding: 22, elevation: 10 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 4 },
   modalSubtitle: { fontSize: 14, color: '#888', marginBottom: 18 },
@@ -406,6 +491,11 @@ const styles = StyleSheet.create({
   inputHint: { fontSize: 11, color: '#999', marginTop: -10, marginBottom: 14, lineHeight: 16 },
   input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333', marginBottom: 14 },
   textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, fontSize: 15, borderWidth: 1, borderColor: '#ddd', color: '#333', minHeight: 80, textAlignVertical: 'top', marginBottom: 14 },
+  imagePickerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f4ff', borderWidth: 1, borderColor: '#9b59b6', borderRadius: 10, padding: 12, marginBottom: 8 },
+  imagePickerBtnRequired: { borderStyle: 'dashed' },
+  imagePickerText: { fontSize: 13, color: '#9b59b6', flex: 1 },
+  proofPreviewContainer: { position: 'relative', marginBottom: 12 },
+  removeProofBtn: { position: 'absolute', top: 6, right: 6 },
   pointsPreview: { backgroundColor: '#f8f4ff', borderRadius: 10, padding: 12, marginBottom: 16, alignItems: 'center' },
   pointsPreviewText: { fontSize: 13, color: '#555' },
   pointsPreviewNum: { fontWeight: 'bold', color: '#9b59b6', fontSize: 15 },

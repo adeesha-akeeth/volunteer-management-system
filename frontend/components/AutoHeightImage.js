@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Image, View } from 'react-native';
+import { Image, TouchableOpacity } from 'react-native';
+import ImageViewer from './ImageViewer';
 
 const AutoHeightImage = ({ uri, style, borderRadius = 10, resizeMode = 'cover' }) => {
   const [aspectRatio, setAspectRatio] = useState(16 / 9);
+  const [viewerVisible, setViewerVisible] = useState(false);
 
   useEffect(() => {
     if (!uri) return;
@@ -12,13 +14,20 @@ const AutoHeightImage = ({ uri, style, borderRadius = 10, resizeMode = 'cover' }
   }, [uri]);
 
   return (
-    <View style={[{ width: '100%', borderRadius, overflow: 'hidden' }, style]}>
-      <Image
-        source={{ uri }}
-        style={{ width: '100%', aspectRatio }}
-        resizeMode={resizeMode}
-      />
-    </View>
+    <>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => setViewerVisible(true)}
+        style={[{ width: '100%', borderRadius, overflow: 'hidden' }, style]}
+      >
+        <Image
+          source={{ uri }}
+          style={{ width: '100%', aspectRatio }}
+          resizeMode={resizeMode}
+        />
+      </TouchableOpacity>
+      <ImageViewer uri={uri} visible={viewerVisible} onClose={() => setViewerVisible(false)} />
+    </>
   );
 };
 

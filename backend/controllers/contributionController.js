@@ -20,11 +20,17 @@ const submitContribution = async (req, res) => {
       return res.status(403).json({ message: 'You must have an approved application to log a contribution' });
     }
 
+    if (!req.file) {
+      return res.status(400).json({ message: 'Proof image is required' });
+    }
+    const proofImage = req.file.path.replace(/\\/g, '/');
+
     const contribution = await Contribution.create({
       opportunity: opportunityId,
       volunteer: req.user.id,
       hours: Number(hours),
-      description: description || ''
+      description: description || '',
+      proofImage
     });
 
     // Notify the creator
@@ -60,6 +66,11 @@ const updateMyContribution = async (req, res) => {
       contribution.hours = Number(hours);
     }
     if (description !== undefined) contribution.description = description;
+    if (req.file) {
+      contribution.proofImage = req.file.path.replace(/\\/g, '/');
+    } else if (req.body.removeProofImage === 'true') {
+      contribution.proofImage = '';
+    }
     await contribution.save();
 
     res.json({ message: 'Contribution updated', contribution });

@@ -6,13 +6,15 @@ import {
   Image, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useToast } from '../../components/Toast';
+import AutoHeightImage from '../../components/AutoHeightImage';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 
-const ListFormModal = ({ visible, title, name, description, onChangeName, onChangeDescription, onSubmit, onCancel, submitting }) => (
+const ListFormModal = ({ visible, title, name, description, photo, onChangeName, onChangeDescription, onPickPhoto, onRemovePhoto, onSubmit, onCancel, submitting }) => (
   <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
     <KeyboardAvoidingView
       style={styles.modalOverlay}
@@ -27,6 +29,19 @@ const ListFormModal = ({ visible, title, name, description, onChangeName, onChan
             <TextInput style={styles.input} placeholder="e.g. Environmental Causes" placeholderTextColor="#aaa" value={name} onChangeText={onChangeName} autoFocus />
             <Text style={styles.label}>Description (optional)</Text>
             <TextInput style={styles.textArea} placeholder="What kind of opportunities?" placeholderTextColor="#aaa" value={description} onChangeText={onChangeDescription} multiline numberOfLines={3} />
+            <Text style={styles.label}>Banner Image (optional)</Text>
+            <TouchableOpacity style={styles.imagePickerBtn} onPress={onPickPhoto}>
+              <Ionicons name="image-outline" size={18} color="#e74c3c" style={{ marginRight: 8 }} />
+              <Text style={styles.imagePickerText}>{photo ? 'Replace banner image' : 'Add a banner image'}</Text>
+            </TouchableOpacity>
+            {photo ? (
+              <View style={{ position: 'relative', marginBottom: 10 }}>
+                <AutoHeightImage uri={photo} borderRadius={10} />
+                <TouchableOpacity style={styles.removePhotoBtn} onPress={onRemovePhoto}>
+                  <Ionicons name="close-circle" size={26} color="#e74c3c" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <TouchableOpacity style={styles.submitButton} onPress={onSubmit} disabled={submitting}>
               {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>{title}</Text>}
             </TouchableOpacity>
@@ -58,6 +73,7 @@ const FavouritesScreen = ({ navigation }) => {
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createDesc, setCreateDesc] = useState('');
+  const [createPhoto, setCreatePhoto] = useState(null);
   const [creating, setCreating] = useState(false);
 
   const fetchFeed = async () => {
@@ -102,12 +118,27 @@ const FavouritesScreen = ({ navigation }) => {
     } catch {}
   };
 
+  const handlePickCreatePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.canceled) setCreatePhoto(result.assets[0].uri);
+  };
+
   const handleCreate = async () => {
     if (!createName.trim()) { toast.warning('Required', 'Please enter a list name'); return; }
     setCreating(true);
     try {
-      await api.post('/api/favourites', { name: createName.trim(), description: createDesc.trim() });
-      setShowCreate(false); setCreateName(''); setCreateDesc('');
+      const formData = new FormData();
+      formData.append('name', createName.trim());
+      formData.append('description', createDesc.trim());
+      if (createPhoto) {
+        formData.append('photo', { uri: createPhoto, type: 'image/jpeg', name: 'banner.jpg' });
+      }
+      await api.post('/api/favourites', formData);
+      setShowCreate(false); setCreateName(''); setCreateDesc(''); setCreatePhoto(null);
       fetchLists();
     } catch { toast.error('Error', 'Failed to create list'); }
     finally { setCreating(false); }
@@ -331,9 +362,10 @@ const FavouritesScreen = ({ navigation }) => {
 
       <ListFormModal
         visible={showCreate} title="Create New List"
-        name={createName} description={createDesc}
+        name={createName} description={createDesc} photo={createPhoto}
         onChangeName={setCreateName} onChangeDescription={setCreateDesc}
-        onSubmit={handleCreate} onCancel={() => { setShowCreate(false); setCreateName(''); setCreateDesc(''); }}
+        onPickPhoto={handlePickCreatePhoto} onRemovePhoto={() => setCreatePhoto(null)}
+        onSubmit={handleCreate} onCancel={() => { setShowCreate(false); setCreateName(''); setCreateDesc(''); setCreatePhoto(null); }}
         submitting={creating}
       />
     </View>
@@ -430,6 +462,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
   input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
   textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 80, textAlignVertical: 'top', color: '#333' },
+  imagePickerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffe0e0', borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 12, marginBottom: 10 },
+  imagePickerText: { fontSize: 13, color: '#e74c3c', flex: 1 },
+  removePhotoBtn: { position: 'absolute', top: 6, right: 6 },
   submitButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10 },
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   cancelButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, alignItems: 'center' },

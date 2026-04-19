@@ -6,8 +6,10 @@ import {
   KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmModal';
+import AutoHeightImage from '../../components/AutoHeightImage';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
@@ -26,6 +28,9 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
   const [editVisible, setEditVisible] = useState(false);
   const [editName, setEditName] = useState(initialList.name);
   const [editDesc, setEditDesc] = useState(initialList.description || '');
+  const [editPhoto, setEditPhoto] = useState(null);           // new local URI
+  const [editExistingPhoto, setEditExistingPhoto] = useState(initialList.photo || null);
+  const [editRemovePhoto, setEditRemovePhoto] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchList = async () => {
@@ -91,12 +96,36 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
     });
   };
 
+  const pickEditPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.canceled) {
+      setEditPhoto(result.assets[0].uri);
+      setEditRemovePhoto(false);
+    }
+  };
+
   const handleEdit = async () => {
     if (!editName.trim()) { toast.warning('Required', 'Please enter a list name'); return; }
     setEditSubmitting(true);
     try {
-      await api.put(`/api/favourites/${list._id}`, { name: editName.trim(), description: editDesc.trim() });
-      setList(prev => ({ ...prev, name: editName.trim(), description: editDesc.trim() }));
+      const formData = new FormData();
+      formData.append('name', editName.trim());
+      formData.append('description', editDesc.trim());
+      if (editPhoto) {
+        formData.append('photo', { uri: editPhoto, type: 'image/jpeg', name: 'banner.jpg' });
+      } else if (editRemovePhoto) {
+        formData.append('removePhoto', 'true');
+      }
+      const res = await api.put(`/api/favourites/${list._id}`, formData);
+      const updatedPhoto = res.data?.photo || '';
+      setList(prev => ({ ...prev, name: editName.trim(), description: editDesc.trim(), photo: updatedPhoto }));
+      setEditExistingPhoto(updatedPhoto || null);
+      setEditPhoto(null);
+      setEditRemovePhoto(false);
       setEditVisible(false);
       toast.success('Updated', 'List updated successfully');
     } catch {
@@ -181,8 +210,24 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  const openEdit = () => {
+    setEditName(list.name);
+    setEditDesc(list.description || '');
+    setEditPhoto(null);
+    setEditExistingPhoto(list.photo || null);
+    setEditRemovePhoto(false);
+    setEditVisible(true);
+  };
+
+  const editPreviewUri = editPhoto || (editExistingPhoto && !editRemovePhoto ? `${BASE_URL}/${editExistingPhoto}` : null);
+
   return (
     <View style={styles.container}>
+      {/* Banner image */}
+      {list.photo ? (
+        <AutoHeightImage uri={`${BASE_URL}/${list.photo}`} style={styles.bannerImage} borderRadius={0} />
+      ) : null}
+
       {/* Header with list info and actions */}
       <View style={styles.headerCard}>
         <View style={{ flex: 1 }}>
@@ -191,7 +236,7 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
           <Text style={styles.countLabel}>{opportunities.length} opportunit{opportunities.length !== 1 ? 'ies' : 'y'}</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={() => { setEditName(list.name); setEditDesc(list.description || ''); setEditVisible(true); }}>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={openEdit}>
             <Ionicons name="pencil-outline" size={18} color="#2e86de" />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.headerActionBtn, styles.headerDeleteBtn]} onPress={handleDelete}>
@@ -251,6 +296,25 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
                   multiline
                   numberOfLines={3}
                 />
+                <Text style={styles.label}>Banner Image (optional)</Text>
+                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickEditPhoto}>
+                  <Ionicons name="image-outline" size={18} color="#e74c3c" style={{ marginRight: 8 }} />
+                  <Text style={styles.imagePickerText}>{editPreviewUri ? 'Replace banner image' : 'Add a banner image'}</Text>
+                </TouchableOpacity>
+                {editPreviewUri ? (
+                  <View style={{ position: 'relative', marginBottom: 10 }}>
+                    <AutoHeightImage uri={editPreviewUri} borderRadius={10} />
+                    <TouchableOpacity
+                      style={styles.removePhotoBtn}
+                      onPress={() => {
+                        if (editPhoto) setEditPhoto(null);
+                        else { setEditExistingPhoto(null); setEditRemovePhoto(true); }
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={26} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
                 <TouchableOpacity style={styles.submitButton} onPress={handleEdit} disabled={editSubmitting}>
                   {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Save Changes</Text>}
                 </TouchableOpacity>
@@ -268,6 +332,7 @@ const FavouriteDetailScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f8' },
+  bannerImage: {},
 
   headerCard: {
     backgroundColor: '#fff',
@@ -325,6 +390,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 6 },
   input: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', color: '#333' },
   textArea: { backgroundColor: '#f8f9fa', borderRadius: 10, padding: 14, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: '#ddd', minHeight: 80, textAlignVertical: 'top', color: '#333' },
+  imagePickerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffe0e0', borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, padding: 12, marginBottom: 10 },
+  imagePickerText: { fontSize: 13, color: '#e74c3c', flex: 1 },
+  removePhotoBtn: { position: 'absolute', top: 6, right: 6 },
   submitButton: { backgroundColor: '#e74c3c', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10 },
   submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   cancelButton: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, alignItems: 'center' },

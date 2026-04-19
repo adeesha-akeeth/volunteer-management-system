@@ -1,12 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  TouchableOpacity, ActivityIndicator, RefreshControl
+  TouchableOpacity, ActivityIndicator, RefreshControl,
+  Modal, ScrollView
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useToast } from '../../components/Toast';
+import AutoHeightImage from '../../components/AutoHeightImage';
 import api from '../../api';
 
+const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
 const STATUS_COLOR = { pending: '#f39c12', verified: '#27ae60', rejected: '#e74c3c' };
 const STATUS_ICON = { pending: '⏳', verified: '✅', rejected: '❌' };
 
@@ -17,6 +21,7 @@ const AllContributionsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [actionLoading, setActionLoading] = useState({});
+  const [selected, setSelected] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -34,14 +39,15 @@ const AllContributionsScreen = () => {
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const handleAction = async (id, status) => {
-    setActionLoading(prev => ({ ...prev, [id]: true }));
+    setActionLoading(prev => ({ ...prev, [id]: status }));
     try {
       await api.put(`/api/contributions/${id}/status`, { status });
       setContributions(prev => prev.map(c => c._id === id ? { ...c, status } : c));
+      if (selected?._id === id) setSelected(prev => ({ ...prev, status }));
     } catch {
       toast.error('Error', `Failed to ${status === 'verified' ? 'approve' : 'reject'} contribution`);
     } finally {
-      setActionLoading(prev => ({ ...prev, [id]: false }));
+      setActionLoading(prev => ({ ...prev, [id]: undefined }));
     }
   };
 
@@ -83,46 +89,124 @@ const AllContributionsScreen = () => {
             <Text style={styles.emptyText}>No {filter} contributions</Text>
           </View>
         }
-        renderItem={({ item }) => {
-          const isLoading = actionLoading[item._id];
-          return (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.statusBadge, { backgroundColor: STATUS_COLOR[item.status] + '20' }]}>
-                  <Text style={[styles.statusText, { color: STATUS_COLOR[item.status] }]}>
-                    {STATUS_ICON[item.status]} {item.status}
-                  </Text>
-                </View>
-                <Text style={styles.date}>{new Date(item.createdAt).toDateString()}</Text>
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLOR[item.status] + '20' }]}>
+                <Text style={[styles.statusText, { color: STATUS_COLOR[item.status] }]}>
+                  {STATUS_ICON[item.status]} {item.status}
+                </Text>
+              </View>
+              <Text style={styles.date}>{new Date(item.createdAt).toDateString()}</Text>
+            </View>
+
+            <Text style={styles.volunteer}>👤 {item.volunteer?.name || 'Unknown'}</Text>
+            <Text style={styles.opportunity} numberOfLines={1}>📌 {item.opportunity?.title || 'Opportunity'}</Text>
+            <Text style={styles.hours}>⏱ {item.hours} hours</Text>
+
+            <TouchableOpacity style={styles.detailsBtn} onPress={() => setSelected(item)}>
+              <Ionicons name="information-circle-outline" size={15} color="#9b59b6" style={{ marginRight: 5 }} />
+              <Text style={styles.detailsBtnText}>More Details</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+
+      {/* Detail Modal */}
+      {selected && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Contribution Details</Text>
+                <TouchableOpacity onPress={() => setSelected(null)}>
+                  <Ionicons name="close" size={22} color="#888" />
+                </TouchableOpacity>
               </View>
 
-              <Text style={styles.volunteer}>👤 {item.volunteer?.name || 'Unknown'}</Text>
-              <Text style={styles.opportunity}>📌 {item.opportunity?.title || 'Opportunity'}</Text>
-              <Text style={styles.hours}>⏱ {item.hours} hours</Text>
-              {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
-
-              {item.status === 'pending' && (
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={styles.approveBtn}
-                    onPress={() => handleAction(item._id, 'verified')}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.approveBtnText}>✅ Verify</Text>}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.rejectBtn}
-                    onPress={() => handleAction(item._id, 'rejected')}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.rejectBtnText}>❌ Reject</Text>}
-                  </TouchableOpacity>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+                {/* Status */}
+                <View style={[styles.detailStatusBar, { backgroundColor: STATUS_COLOR[selected.status] + '18' }]}>
+                  <Text style={[styles.detailStatusText, { color: STATUS_COLOR[selected.status] }]}>
+                    {STATUS_ICON[selected.status]} {selected.status.charAt(0).toUpperCase() + selected.status.slice(1)}
+                  </Text>
                 </View>
-              )}
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>Volunteer</Text>
+                  <Text style={styles.detailValue}>{selected.volunteer?.name || 'Unknown'}</Text>
+                </View>
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>Email</Text>
+                  <Text style={styles.detailValue}>{selected.volunteer?.email || '—'}</Text>
+                </View>
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>Opportunity</Text>
+                  <Text style={styles.detailValue}>{selected.opportunity?.title || '—'}</Text>
+                </View>
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>Hours</Text>
+                  <Text style={[styles.detailValue, { color: '#9b59b6', fontWeight: 'bold', fontSize: 18 }]}>
+                    {selected.hours} hr{selected.hours !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                {selected.description ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailLabel}>Description</Text>
+                    <Text style={[styles.detailValue, { fontStyle: 'italic' }]}>{selected.description}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>Submitted</Text>
+                  <Text style={styles.detailValue}>{new Date(selected.createdAt).toDateString()}</Text>
+                </View>
+
+                {selected.proofImage ? (
+                  <View style={styles.proofSection}>
+                    <Text style={styles.detailLabel}>Proof Photo</Text>
+                    <AutoHeightImage
+                      uri={`${BASE_URL}/${selected.proofImage}`}
+                      style={styles.proofImage}
+                      borderRadius={10}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailLabel}>Proof Photo</Text>
+                    <Text style={[styles.detailValue, { color: '#bbb' }]}>No photo attached</Text>
+                  </View>
+                )}
+
+                {selected.status === 'pending' && (
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.verifyBtn}
+                      onPress={() => handleAction(selected._id, 'verified')}
+                      disabled={!!actionLoading[selected._id]}
+                    >
+                      {actionLoading[selected._id] === 'verified'
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Text style={styles.actionBtnText}>✅ Verify</Text>
+                      }
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => handleAction(selected._id, 'rejected')}
+                      disabled={!!actionLoading[selected._id]}
+                    >
+                      {actionLoading[selected._id] === 'rejected'
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Text style={styles.actionBtnText}>❌ Reject</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
             </View>
-          );
-        }}
-      />
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -143,16 +227,30 @@ const styles = StyleSheet.create({
   date: { fontSize: 12, color: '#aaa' },
   volunteer: { fontSize: 15, fontWeight: 'bold', color: '#333', marginBottom: 3 },
   opportunity: { fontSize: 13, color: '#555', marginBottom: 3 },
-  hours: { fontSize: 14, color: '#2e86de', fontWeight: '600', marginBottom: 4 },
-  description: { fontSize: 13, color: '#777', fontStyle: 'italic', marginBottom: 8 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  approveBtn: { flex: 1, backgroundColor: '#27ae60', borderRadius: 8, padding: 10, alignItems: 'center' },
-  approveBtnText: { color: '#fff', fontWeight: 'bold' },
-  rejectBtn: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 8, padding: 10, alignItems: 'center' },
-  rejectBtnText: { color: '#fff', fontWeight: 'bold' },
+  hours: { fontSize: 14, color: '#2e86de', fontWeight: '600', marginBottom: 8 },
+  detailsBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#f8f4ff', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#9b59b6' },
+  detailsBtnText: { color: '#9b59b6', fontWeight: 'bold', fontSize: 13 },
 
   empty: { alignItems: 'center', paddingTop: 60 },
-  emptyText: { color: '#999', fontSize: 15 }
+  emptyText: { color: '#999', fontSize: 15 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalBox: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', paddingHorizontal: 20, paddingBottom: 10 },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginVertical: 12 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  detailStatusBar: { borderRadius: 10, padding: 12, marginBottom: 14, alignItems: 'center' },
+  detailStatusText: { fontSize: 15, fontWeight: 'bold' },
+  detailSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  detailLabel: { fontSize: 13, color: '#888', fontWeight: '600' },
+  detailValue: { fontSize: 14, color: '#333', flex: 1, textAlign: 'right', marginLeft: 10 },
+  proofSection: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  proofImage: { marginTop: 10 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  verifyBtn: { flex: 1, backgroundColor: '#27ae60', borderRadius: 12, padding: 14, alignItems: 'center' },
+  rejectBtn: { flex: 1, backgroundColor: '#e74c3c', borderRadius: 12, padding: 14, alignItems: 'center' },
+  actionBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 });
 
 export default AllContributionsScreen;
