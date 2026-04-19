@@ -20,7 +20,7 @@ export const ConfirmProvider = ({ children }) => {
   }, [config, dismiss]);
 
   return (
-    <ConfirmContext.Provider value={show}>
+    <ConfirmContext.Provider value={{ show }}>
       {children}
       <Modal visible={!!config} transparent animationType="fade" onRequestClose={dismiss}>
         <View style={styles.overlay}>
