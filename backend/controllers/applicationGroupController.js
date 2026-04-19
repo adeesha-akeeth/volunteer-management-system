@@ -103,7 +103,20 @@ const acceptAllInGroup = async (req, res) => {
   }
 };
 
+const rejectAllInGroup = async (req, res) => {
+  try {
+    const group = await ApplicationGroup.findById(req.params.id).populate('applications');
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    if (group.createdBy.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    const pendingIds = group.applications.filter(a => a.status === 'pending').map(a => a._id);
+    await Application.updateMany({ _id: { $in: pendingIds } }, { status: 'rejected' });
+    res.json({ message: `${pendingIds.length} application(s) rejected` });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getGroupsForOpportunity, createGroup, updateGroup, deleteGroup,
-  assignToGroup, removeFromGroup, acceptAllInGroup
+  assignToGroup, removeFromGroup, acceptAllInGroup, rejectAllInGroup
 };
