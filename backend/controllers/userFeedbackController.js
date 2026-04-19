@@ -45,7 +45,7 @@ const getMyFeedbacks = async (req, res) => {
 
 const updateFeedback = async (req, res) => {
   try {
-    const { title, message } = req.body;
+    const { title, message, removeImage } = req.body;
     const feedback = await UserFeedback.findOne({ _id: req.params.id, user: req.user.id });
     if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
     if (feedback.status === 'replied') {
@@ -53,6 +53,11 @@ const updateFeedback = async (req, res) => {
     }
     if (title) feedback.title = title.trim();
     if (message) feedback.message = message.trim();
+    if (req.file) {
+      feedback.image = req.file.path.replace(/\\/g, '/');
+    } else if (removeImage === 'true') {
+      feedback.image = '';
+    }
     await feedback.save();
     res.json(feedback);
   } catch (error) {

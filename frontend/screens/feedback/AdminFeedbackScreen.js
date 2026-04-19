@@ -2,13 +2,14 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Modal, TextInput, ActivityIndicator, RefreshControl,
-  KeyboardAvoidingView, Platform, ScrollView, Image
+  KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../components/Toast';
+import AutoHeightImage from '../../components/AutoHeightImage';
 import api from '../../api';
 
 const BASE_URL = 'https://volunteer-management-system-qux8.onrender.com';
@@ -51,7 +52,7 @@ const AdminFeedbackScreen = () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.7,
+      quality: 1,
     });
     if (!result.canceled) setReplyImage(result.assets[0].uri);
   };
@@ -209,7 +210,7 @@ const AdminFeedbackScreen = () => {
                     <Text style={s.mFeedbackTitle}>{selected.title}</Text>
                     <Text style={s.mFeedbackMsg}>{selected.message}</Text>
                     {selected.image ? (
-                      <Image source={{ uri: `${BASE_URL}/${selected.image}` }} style={s.feedbackImage} resizeMode="cover" />
+                      <AutoHeightImage uri={`${BASE_URL}/${selected.image}`} style={s.feedbackImage} />
                     ) : null}
                     <Text style={s.mDate}>{new Date(selected.createdAt).toDateString()}</Text>
                   </View>
@@ -222,7 +223,7 @@ const AdminFeedbackScreen = () => {
                         <View key={i} style={[s.replyItem, i > 0 && s.replyItemBorder]}>
                           <Text style={s.replyText}>{r.text}</Text>
                           {r.image ? (
-                            <Image source={{ uri: `${BASE_URL}/${r.image}` }} style={s.replyImage} resizeMode="cover" />
+                            <AutoHeightImage uri={`${BASE_URL}/${r.image}`} style={s.replyImage} borderRadius={8} />
                           ) : null}
                           <Text style={s.replyDate}>{r.createdAt ? new Date(r.createdAt).toDateString() : ''}</Text>
                         </View>
@@ -261,9 +262,9 @@ const AdminFeedbackScreen = () => {
                     </TouchableOpacity>
                     {replyImage ? (
                       <View style={s.previewContainer}>
-                        <Image source={{ uri: replyImage }} style={s.previewImage} resizeMode="cover" />
+                        <AutoHeightImage uri={replyImage} borderRadius={10} />
                         <TouchableOpacity style={s.removeImageBtn} onPress={() => setReplyImage(null)}>
-                          <Ionicons name="close-circle" size={22} color={t.danger} />
+                          <Ionicons name="close-circle" size={26} color={t.danger} />
                         </TouchableOpacity>
                       </View>
                     ) : null}
@@ -334,17 +335,16 @@ const makeStyles = (t) => StyleSheet.create({
   mFeedbackTitle: { fontSize: 16, fontWeight: 'bold', color: t.text, marginBottom: 6 },
   mFeedbackMsg: { fontSize: 14, color: t.textSub, lineHeight: 20 },
   mDate: { fontSize: 10, color: t.textMuted, marginTop: 8 },
-  feedbackImage: { width: '100%', height: 160, borderRadius: 10, marginTop: 10 },
+  feedbackImage: { marginTop: 10 },
   replyItem: { paddingVertical: 8 },
   replyItemBorder: { borderTopWidth: 1, borderTopColor: t.borderLight },
   replyText: { fontSize: 14, color: t.text, lineHeight: 20 },
-  replyImage: { width: '100%', height: 140, borderRadius: 8, marginTop: 8 },
+  replyImage: { marginTop: 8 },
   replyDate: { fontSize: 10, color: t.textMuted, marginTop: 4 },
   replyInput: { backgroundColor: t.bgInput, borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 12, fontSize: 14, color: t.text, minHeight: 100, textAlignVertical: 'top', marginBottom: 10 },
   imagePickerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.bgInput, borderWidth: 1, borderColor: t.border, borderRadius: 8, padding: 10, marginBottom: 10 },
   imagePickerText: { fontSize: 13, color: t.textSub },
   previewContainer: { position: 'relative', marginBottom: 10 },
-  previewImage: { width: '100%', height: 140, borderRadius: 10 },
   removeImageBtn: { position: 'absolute', top: 6, right: 6 },
   replyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, borderRadius: 10, padding: 13, marginTop: 4 },
   replyBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },

@@ -16,7 +16,7 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.post('/', protect, upload.single('image'), createFeedback);
 router.get('/my', protect, getMyFeedbacks);
-router.put('/:id', protect, updateFeedback);
+router.put('/:id', protect, upload.single('image'), updateFeedback);
 router.delete('/:id', protect, deleteFeedback);
 router.get('/admin/all', protect, getAllFeedbacks);
 router.post('/:id/reply', protect, upload.single('image'), replyToFeedback);
