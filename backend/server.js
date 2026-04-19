@@ -96,16 +96,22 @@ app.use('/api/follows', followRoutes);
 const opportunityRatingRoutes = require('./routes/opportunityRatingRoutes');
 app.use('/api/opportunity-ratings', opportunityRatingRoutes);
 
-// Seed admin user on startup
+// Seed admin user on startup using env-configured credentials
 const seedAdmin = async () => {
   try {
     const User = require('./models/User');
     const bcrypt = require('bcryptjs');
-    const existing = await User.findOne({ email: 'admin1' });
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminEmail || !adminPassword) {
+      console.log('ADMIN_EMAIL or ADMIN_PASSWORD not set in .env — skipping admin seed');
+      return;
+    }
+    const existing = await User.findOne({ email: adminEmail });
     if (!existing) {
-      const hashed = await bcrypt.hash('admin@123', 10);
-      await User.create({ name: 'Admin', email: 'admin1', password: hashed, phone: '', role: 'admin' });
-      console.log('Admin user seeded: email=admin1 password=admin@123');
+      const hashed = await bcrypt.hash(adminPassword, 10);
+      await User.create({ name: 'Admin', email: adminEmail, password: hashed, phone: '', role: 'admin' });
+      console.log('Admin user seeded');
     }
   } catch (err) {
     console.log('Admin seed error:', err.message);

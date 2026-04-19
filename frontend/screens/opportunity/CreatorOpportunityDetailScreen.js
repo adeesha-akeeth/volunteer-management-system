@@ -129,7 +129,7 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
     const current = opportunity?.status || 'open';
     const next = current === 'open' ? 'closed' : 'open';
     confirm.show({
-      title: next === 'closed' ? 'Close Applications' : 'Re-open Applications',
+      title: next === 'closed' ? 'Close Opportunity' : 'Open Opportunity',
       message: next === 'closed' ? 'Prevent new applications from being submitted?' : 'Allow new applications again?',
       confirmText: 'Confirm',
       destructive: next === 'closed',
@@ -196,7 +196,7 @@ const CreatorOpportunityDetailScreen = ({ route, navigation }) => {
             onPress={handleToggleStatus}
           >
             <Ionicons name={opportunity?.status === 'closed' ? 'lock-open-outline' : 'lock-closed-outline'} size={14} color="#fff" />
-            <Text style={styles.headerBtnText}> {opportunity?.status === 'closed' ? 'Re-open' : 'Close Apps'}</Text>
+            <Text style={styles.headerBtnText}> {opportunity?.status === 'closed' ? 'Open' : 'Close'}</Text>
           </TouchableOpacity>
         </View>
       </View>

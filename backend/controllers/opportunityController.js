@@ -236,7 +236,7 @@ const deleteOpportunity = async (req, res) => {
   }
 };
 
-// Creator manually closes or re-opens applications
+// Creator or admin closes or re-opens applications
 const updateOpportunityStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -245,7 +245,9 @@ const updateOpportunityStatus = async (req, res) => {
     }
     const opportunity = await Opportunity.findById(req.params.id);
     if (!opportunity) return res.status(404).json({ message: 'Opportunity not found' });
-    if (opportunity.createdBy.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    const isCreator = opportunity.createdBy.toString() === req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    if (!isCreator && !isAdmin) return res.status(403).json({ message: 'Not authorized' });
 
     opportunity.status = status;
     await opportunity.save();

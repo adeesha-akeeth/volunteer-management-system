@@ -17,6 +17,11 @@ const applyToOpportunity = async (req, res) => {
       return res.status(400).json({ message: 'This opportunity has already ended and is no longer accepting applications' });
     }
 
+    // Check if applications are closed
+    if (opportunity.status === 'closed') {
+      return res.status(400).json({ message: 'Applications are closed for this opportunity' });
+    }
+
     // Check if all spots are filled (count approved + completed)
     const filledCount = await Application.countDocuments({
       opportunity: opportunityId,

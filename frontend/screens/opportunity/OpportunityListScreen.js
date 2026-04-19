@@ -239,6 +239,9 @@ const OpportunityListScreen = ({ navigation }) => {
         <View style={s.cardHeader}>
           <View style={s.cardHeaderLeft}>
             <View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View>
+            {item.status === 'closed' && (
+              <View style={s.closedBadge}><Text style={s.closedBadgeText}>Closed</Text></View>
+            )}
             {item.averageRating && (
               <View style={s.ratingBadge}>
                 <Text style={s.ratingText}>⭐ {item.averageRating}</Text>
@@ -325,8 +328,10 @@ const OpportunityListScreen = ({ navigation }) => {
                 <Ionicons name="heart" size={15} color={t.danger} />
               </TouchableOpacity>
             )}
-            <View style={[s.applyBadge, isOwn && s.applyBadgeOwn]}>
-              <Text style={s.applyBadgeText}>{isOwn || isAdmin ? 'View' : 'View & Apply'}</Text>
+            <View style={[s.applyBadge, (isOwn || item.status === 'closed') && s.applyBadgeOwn]}>
+              <Text style={s.applyBadgeText}>
+                {isOwn || isAdmin ? 'View' : item.status === 'closed' ? 'Closed' : 'View & Apply'}
+              </Text>
             </View>
           </View>
         </View>
@@ -580,6 +585,8 @@ const makeStyles = (t) => StyleSheet.create({
   categoryText: { color: t.accent, fontSize: 11, fontWeight: 'bold', textTransform: 'capitalize' },
   ratingBadge: { backgroundColor: t.warningBg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   ratingText: { color: t.warning, fontSize: 11, fontWeight: 'bold' },
+  closedBadge: { backgroundColor: '#fde8e8', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  closedBadgeText: { color: '#e74c3c', fontSize: 11, fontWeight: 'bold' },
   ownBadge: { backgroundColor: t.accentBg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   ownBadgeText: { color: t.accent, fontSize: 11, fontWeight: 'bold' },
   cardTitle: { fontSize: 17, fontWeight: 'bold', color: t.text, marginBottom: 7 },
